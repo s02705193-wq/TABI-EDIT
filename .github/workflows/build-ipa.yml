@@ -10,36 +10,43 @@ permissions:
 
 jobs:
   build-ipa:
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Generate Xcode Project with XcodeGen
+      - name: Install iOS Cross-Compiler Toolchain (Clang + LLD + ldid + iPhoneOS SDK)
         run: |
-          if ! command -v xcodegen &> /dev/null; then
-            brew install xcodegen
-          fi
-          xcodegen generate
+          sudo apt-get update
+          sudo apt-get install -y clang lld zip curl xz-utils git
+          curl -L https://github.com/theos/sdks/releases/download/master-1433814/iPhoneOS16.5.sdk.tar.xz -o sdk.tar.xz
+          tar -xf sdk.tar.xz
+          curl -L https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_linux_x86_64 -o ldid
+          chmod +x ldid
 
-      - name: Build Unsigned iOS App
+      - name: Compile Native arm64 iOS App & Package TABI_EDIT.ipa
         run: |
-          xcodebuild clean build \
-            -project TabiEdit.xcodeproj \
-            -scheme TabiEdit \
-            -sdk iphoneos \
-            -configuration Release \
-            -derivedDataPath build \
-            ARCHS=arm64 \
-            ONLY_ACTIVE_ARCH=NO \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+          mkdir -p Payload/TabiEdit.app
 
-      - name: Package Payload into TABI_EDIT.ipa
-        run: |
-          mkdir -p Payload
-          cp -r build/Build/Products/Release-iphoneos/TabiEdit.app Payload/
+          clang -target arm64-apple-ios15.0 \
+            -isysroot $(pwd)/iPhoneOS16.5.sdk \
+            -fuse-ld=lld \
+            -fobjc-arc \
+            -O2 \
+            TabiEdit/main.m \
+            -framework UIKit \
+            -framework Foundation \
+            -framework WebKit \
+            -framework AVFoundation \
+            -framework Photos \
+            -framework CoreGraphics \
+            -o Payload/TabiEdit.app/TabiEdit
+
+          ./ldid -S Payload/TabiEdit.app/TabiEdit
+          cp TabiEdit/Info.plist Payload/TabiEdit.app/Info.plist
+          cp TabiEdit/index.html Payload/TabiEdit.app/index.html
+          printf "APPL????" > Payload/TabiEdit.app/PkgInfo
+
           zip -r9 TABI_EDIT.ipa Payload
           ls -lh TABI_EDIT.ipa
 
@@ -56,7 +63,7 @@ jobs:
           name: "TABI EDIT iOS v1.0.${{ github.run_number }} (IPA)"
           body: |
             ### 🎬 TABI EDIT — iOS 1080p 60FPS Video Enhancer & Editor
-            - **App Name:** TABI EDIT
+            - **App Name:** TABI EDIT (`TABI_EDIT.ipa`)
             - **Features Included:**
               - 🔥 **CapCut Default 1 & Default 2** 1-Click Quality Presets + Custom Color & 5-Ch HSL Sliders
               - ✂️ **Video Split & 🗑️ Delete Clip** Timeline Editor

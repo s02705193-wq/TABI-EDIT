@@ -1,0 +1,68 @@
+name: Build TABI EDIT iOS IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ipa:
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Generate Xcode Project with XcodeGen
+        run: |
+          if ! command -v xcodegen &> /dev/null; then
+            brew install xcodegen
+          fi
+          xcodegen generate
+
+      - name: Build Unsigned iOS App
+        run: |
+          xcodebuild clean build \
+            -project TabiEdit.xcodeproj \
+            -scheme TabiEdit \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package Payload into TABI_EDIT.ipa
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/TabiEdit.app Payload/
+          zip -r9 TABI_EDIT.ipa Payload
+          ls -lh TABI_EDIT.ipa
+
+      - name: Upload TABI_EDIT.ipa Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TABI_EDIT_IPA
+          path: TABI_EDIT.ipa
+
+      - name: Publish GitHub Release with TABI_EDIT.ipa
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "TABI EDIT iOS v1.0.${{ github.run_number }} (IPA)"
+          body: |
+            ### 🎬 TABI EDIT — iOS 1080p 60FPS Video Enhancer & Editor
+            - **App Name:** TABI EDIT
+            - **Features Included:**
+              - 🔥 **CapCut Default 1 & Default 2** 1-Click Quality Presets + Custom Color & 5-Ch HSL Sliders
+              - ✂️ **Video Split & 🗑️ Delete Clip** Timeline Editor
+              - ✨ **Fade-In Animation** (Adjustable duration)
+              - 🎙️ **Voice Overlay** (Live Microphone Voiceover Recorder + Audio File Import + Volume Mixer)
+              - 🚀 **1080p 60FPS Export** to iPhone Photos & Share Sheet
+          files: TABI_EDIT.ipa
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

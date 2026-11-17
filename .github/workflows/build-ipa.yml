@@ -19,7 +19,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y clang lld zip curl xz-utils git
-          curl -L https://github.com/theos/sdks/releases/download/master-1433814/iPhoneOS16.5.sdk.tar.xz -o sdk.tar.xz
+          curl -L https://github.com/theos/sdks/releases/download/master-146e41f/iPhoneOS16.5.sdk.tar.xz -o sdk.tar.xz
           tar -xf sdk.tar.xz
           curl -L https://github.com/ProcursusTeam/ldid/releases/download/v2.1.5-procursus7/ldid_linux_x86_64 -o ldid
           chmod +x ldid

@@ -38,6 +38,8 @@ jobs:
             -framework Foundation \
             -framework WebKit \
             -framework AVFoundation \
+            -framework CoreImage \
+            -framework CoreMedia \
             -framework Photos \
             -framework CoreGraphics \
             -o Payload/TabiEdit.app/TabiEdit

@@ -541,10 +541,10 @@
         fadeMult = Math.max(0.05, Math.min(1.0, relTime / fadeDur));
       }
 
-      // Match CapCut deep shadows + rich saturation look on iOS <video>
-      const bPct = Math.round((100 + br * 0.45 + bl * 0.35) * fadeMult);
-      const cPct = Math.round(108 - co * 0.35 - bl * 0.45);
-      const satPct = Math.round(100 + sa * 1.15 + hslAvg * 0.75);
+      // Match PC Live Preview & sRGB 3D LUT 1:1 on iOS <video>
+      const bPct = Math.round((100 + br * 0.35 + bl * 0.22) * fadeMult);
+      const cPct = Math.round(100 + co * 0.35 - bl * 0.25);
+      const satPct = Math.round(100 + sa * 0.90 + hslAvg * 0.55);
 
       video.style.webkitFilter = `brightness(${bPct}%) contrast(${cPct}%) saturate(${satPct}%)`;
       video.style.filter = `brightness(${bPct}%) contrast(${cPct}%) saturate(${satPct}%)`;

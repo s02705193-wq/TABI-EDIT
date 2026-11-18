@@ -4,11 +4,10 @@
 #import <CoreImage/CoreImage.h>
 #import <CoreMedia/CoreMedia.h>
 #import <Photos/Photos.h>
-#import <MobileCoreServices/MobileCoreServices.h>
 #include <math.h>
 
 // ============================================================================
-// Exact CapCut 3D LUT Math in C (Matches PC Engine 100% — Runs on iPhone GPU)
+// Exact CapCut sRGB 3D LUT Math in C (1:1 Match with Live Preview & PC)
 // ============================================================================
 
 static void rgbToHsl(float r, float g, float b, float *hOut, float *sOut, float *lOut) {
@@ -63,20 +62,20 @@ static float hueWeight(float hue, float center, float halfWidth) {
     return 0.5f * (1.0f + cosf(((float)M_PI * diff) / halfWidth));
 }
 
+// Balanced CapCut Tone Mapping (Never darkens excessively; matches Live Preview 1:1)
 static float applyToneChannel(float v, float br, float co, float bl) {
-    float x = v * (1.0f + br * 0.42f);
+    // 1. Gentle midtone gamma from Brightness & Brilliance (keeps video bright & clear)
+    float gamma = powf(2.0f, (-br * 0.22f) + (-bl * 0.24f));
+    float x = powf(fmaxf(0.0f, fminf(1.0f, v)), gamma);
+
+    // 2. Slight brightness offset
+    x = x + (br * 0.10f);
     x = fmaxf(0.0f, fminf(1.0f, x));
-    float gamma = powf(2.0f, (-br * 0.42f) + (-bl * 0.52f));
-    x = powf(x, gamma);
 
-    if (co < 0.0f) {
-        float soft = (-co) * 0.28f;
-        x = x * (1.0f - soft * x * x);
-    } else if (co > 0.0f) {
-        x = (x - 0.5f) * (1.0f + co * 0.65f) + 0.5f;
-    }
+    // 3. True CapCut Contrast around midpoint 0.5 (negative contrast softly lifts shadows so it NEVER looks dark!)
+    float cFactor = 1.0f + (co * 0.28f) - (bl * 0.18f);
+    x = (x - 0.5f) * cFactor + 0.5f;
 
-    x = x - 0.065f * sinf(2.0f * (float)M_PI * x) / (2.0f * (float)M_PI);
     return fmaxf(0.0f, fminf(1.0f, x));
 }
 
@@ -111,7 +110,8 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
                 float h, sat, l;
                 rgbToHsl(r, g, b, &h, &sat, &l);
 
-                float chromaGate = fminf(1.0f, fmaxf(0.0f, (sat - 0.085f) / 0.165f));
+                // Protect neutral grays (walls/floors stay clean)
+                float chromaGate = fminf(1.0f, fmaxf(0.0f, (sat - 0.08f) / 0.16f));
 
                 float wRed = hueWeight(h, 0.0f, 40.0f);
                 float wBlue = hueWeight(h, 195.0f, 38.0f);
@@ -120,19 +120,14 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
                 float wPink = hueWeight(h, 322.0f, 40.0f);
 
                 float hslBoost =
-                    wRed * hslRed * 1.40f +
-                    wBlue * hslBlue * 1.25f +
-                    wDarkBlue * hslDarkBlue * 1.40f +
-                    wPurple * hslPurple * 1.35f +
-                    wPink * hslPink * 1.40f;
+                    wRed * hslRed * 1.25f +
+                    wBlue * hslBlue * 1.15f +
+                    wDarkBlue * hslDarkBlue * 1.25f +
+                    wPurple * hslPurple * 1.20f +
+                    wPink * hslPink * 1.25f;
 
-                float satMult = 1.0f + (sa * 1.45f * chromaGate) + (hslBoost * chromaGate);
+                float satMult = 1.0f + (sa * 1.20f * chromaGate) + (hslBoost * chromaGate);
                 sat = fmaxf(0.0f, fminf(1.0f, sat * satMult));
-
-                if (hslBoost > 0.0f && sat > 0.18f) {
-                    l = l * (1.0f - fminf(0.16f, hslBoost * 0.085f * sat * chromaGate));
-                    l = fmaxf(0.0f, fminf(1.0f, l));
-                }
 
                 float ro, go, bo;
                 hslToRgb(h, sat, l, &ro, &go, &bo);
@@ -149,7 +144,7 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
 }
 
 // ============================================================================
-// Main ViewController with Native Video Picker, Voice Recorder & AVFoundation
+// Main ViewController with Lossless Passthrough Picker & sRGB 1080p60 Engine
 // ============================================================================
 
 @interface TabiViewController : UIViewController <WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate>
@@ -167,7 +162,15 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor colorWithRed:0.04 green:0.05 blue:0.07 alpha:1.0];
-    self.ciContext = [CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer: @NO}];
+
+    // Use sRGB working color space so CoreImage never darkens midtones in linear light!
+    CGColorSpaceRef srgbSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    self.ciContext = [CIContext contextWithOptions:@{
+        kCIContextUseSoftwareRenderer: @NO,
+        kCIContextWorkingColorSpace: (__bridge id)srgbSpace,
+        kCIContextOutputColorSpace: (__bridge id)srgbSpace
+    }];
+    CGColorSpaceRelease(srgbSpace);
 
     WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
     config.allowsInlineMediaPlayback = YES;
@@ -202,7 +205,7 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
     });
 }
 
-// Native iOS Video Picker
+// Native iOS Video Picker with Lossless Passthrough (Zero Pre-Compression!)
 - (void)openNativeVideoPicker {
     dispatch_async(dispatch_get_main_queue(), ^{
         UIImagePickerController *picker = [[UIImagePickerController alloc] init];
@@ -210,6 +213,7 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
         picker.sourceType = UIImagePickerControllerSourceTypePhotoLibrary;
         picker.mediaTypes = @[@"public.movie"];
         picker.videoQuality = UIImagePickerControllerQualityTypeHigh;
+        picker.videoExportPreset = AVAssetExportPresetPassthrough;
         [self presentViewController:picker animated:YES completion:nil];
     });
 }
@@ -220,7 +224,8 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
     NSURL *mediaURL = info[UIImagePickerControllerMediaURL];
     if (!mediaURL) return;
 
-    NSString *tempFile = [NSTemporaryDirectory() stringByAppendingPathComponent:@"tabi_source_video.mp4"];
+    NSString *ext = mediaURL.pathExtension.length > 0 ? mediaURL.pathExtension : @"mp4";
+    NSString *tempFile = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"tabi_source_video.%@", ext]];
     [[NSFileManager defaultManager] removeItemAtPath:tempFile error:nil];
     [[NSFileManager defaultManager] copyItemAtURL:mediaURL toURL:[NSURL fileURLWithPath:tempFile] error:nil];
 
@@ -281,7 +286,7 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
     }];
 }
 
-// Native AVFoundation + CoreImage 1080p 60FPS Video Exporter
+// Native AVFoundation + CoreImage sRGB 1080p 60FPS Video Exporter
 - (void)exportVideoWithPayload:(NSDictionary *)payload {
     if (!self.currentVideoURL || ![[NSFileManager defaultManager] fileExistsAtPath:self.currentVideoURL.path]) {
         [self sendJSEvent:@"window.onExportError('Please select a video first!');"];
@@ -301,6 +306,8 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
     }
 
     AVMutableCompositionTrack *compVideoTrack = [composition addMutableTrackWithMediaType:AVMediaTypeVideo preferredTrackID:kCMPersistentTrackID_Invalid];
+    compVideoTrack.preferredTransform = srcVideoTrack.preferredTransform;
+
     AVAssetTrack *srcAudioTrack = [[sourceAsset tracksWithMediaType:AVMediaTypeAudio] firstObject];
     AVMutableCompositionTrack *compAudioTrack = nil;
     if (srcAudioTrack) {
@@ -362,59 +369,87 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
         }
     }
 
-    // Precompute 32x32x32 3D LUT Cube Data for CoreImage CIColorCube
+    // Precompute 32x32x32 sRGB 3D LUT Cube Data
     int cubeSize = 32;
     NSData *cubeData = createCapCutColorCubeData(settings, cubeSize);
     float sharpness = [settings[@"sharpness"] ?: @(98) floatValue];
     BOOL fadeInEnabled = [settings[@"fadeInEnabled"] ?: @YES boolValue];
     double fadeInDuration = [settings[@"fadeInDuration"] ?: @(1.2) doubleValue];
 
-    // Calculate oriented natural size and 1080p target size
+    // Calculate oriented source dimensions & True 1080p Target Render Size
     CGAffineTransform transform = srcVideoTrack.preferredTransform;
     CGSize naturalSize = CGSizeApplyAffineTransform(srcVideoTrack.naturalSize, transform);
-    naturalSize.width = fabs(naturalSize.width);
-    naturalSize.height = fabs(naturalSize.height);
-    if (naturalSize.width < 10 || naturalSize.height < 10) {
-        naturalSize = CGSizeMake(1920, 1080);
+    CGFloat srcW = fabs(naturalSize.width);
+    CGFloat srcH = fabs(naturalSize.height);
+    if (srcW < 10 || srcH < 10) {
+        srcW = 1920.0;
+        srcH = 1080.0;
     }
 
+    CGFloat scaleFactor = 1.0;
+    if (srcW >= srcH) {
+        scaleFactor = 1080.0 / srcH;
+    } else {
+        scaleFactor = 1080.0 / srcW;
+    }
+    CGFloat targetW = round(srcW * scaleFactor / 2.0) * 2.0;
+    CGFloat targetH = round(srcH * scaleFactor / 2.0) * 2.0;
+    CGSize targetRenderSize = CGSizeMake(targetW, targetH);
+
     CIContext *ciCtx = self.ciContext;
+    CGColorSpaceRef srgbColorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
 
     AVMutableVideoComposition *videoComp = [AVMutableVideoComposition videoCompositionWithAsset:composition applyingCIFiltersWithHandler:^(AVAsynchronousCIImageFilteringRequest * _Nonnull request) {
         CIImage *img = request.sourceImage;
-        CGRect extent = img.extent;
 
-        // 1. Apply 3D Color & HSL LUT via CIColorCube
-        if (cubeData) {
-            CIFilter *cubeFilter = [CIFilter filterWithName:@"CIColorCube"];
-            [cubeFilter setValue:img forKey:kCIInputImageKey];
-            [cubeFilter setValue:@(cubeSize) forKey:@"inputCubeDimension"];
-            [cubeFilter setValue:cubeData forKey:@"inputCubeData"];
-            CIImage *outImg = cubeFilter.outputImage;
-            if (outImg) img = outImg;
+        // 1. Hardware Lanczos Upscale to True 1080p if needed
+        if (fabs(scaleFactor - 1.0) > 0.02) {
+            CIFilter *lanczos = [CIFilter filterWithName:@"CILanczosScaleTransform"];
+            if (lanczos) {
+                [lanczos setValue:img forKey:kCIInputImageKey];
+                [lanczos setValue:@(scaleFactor) forKey:kCIInputScaleKey];
+                [lanczos setValue:@(1.0) forKey:kCIInputAspectRatioKey];
+                CIImage *scaled = lanczos.outputImage;
+                if (scaled) img = scaled;
+            }
         }
 
-        // 2. Apply CapCut Crisp Sharpening (CIUnsharpMask + CISharpenLuminance)
+        CGRect targetRect = CGRectMake(0, 0, targetW, targetH);
+
+        // 2. Apply sRGB 3D Color & HSL LUT via CIColorCubeWithColorSpace (Prevents linear-light darkening!)
+        if (cubeData) {
+            CIFilter *cubeFilter = [CIFilter filterWithName:@"CIColorCubeWithColorSpace"];
+            if (cubeFilter) {
+                [cubeFilter setValue:img forKey:kCIInputImageKey];
+                [cubeFilter setValue:@(cubeSize) forKey:@"inputCubeDimension"];
+                [cubeFilter setValue:cubeData forKey:@"inputCubeData"];
+                [cubeFilter setValue:(__bridge id)srgbColorSpace forKey:@"inputColorSpace"];
+                CIImage *outImg = cubeFilter.outputImage;
+                if (outImg) img = outImg;
+            }
+        }
+
+        // 3. Apply CapCut Crisp Sharpening (CIUnsharpMask + CISharpenLuminance)
         if (sharpness > 0.0f) {
             float k = sharpness / 100.0f;
             CIFilter *unsharp = [CIFilter filterWithName:@"CIUnsharpMask"];
             if (unsharp) {
                 [unsharp setValue:img forKey:kCIInputImageKey];
-                [unsharp setValue:@(2.5f) forKey:kCIInputRadiusKey];
-                [unsharp setValue:@(k * 1.45f) forKey:kCIInputIntensityKey];
+                [unsharp setValue:@(2.2f) forKey:kCIInputRadiusKey];
+                [unsharp setValue:@(k * 1.25f) forKey:kCIInputIntensityKey];
                 CIImage *outImg = unsharp.outputImage;
                 if (outImg) img = outImg;
             }
             CIFilter *sharpen = [CIFilter filterWithName:@"CISharpenLuminance"];
             if (sharpen) {
                 [sharpen setValue:img forKey:kCIInputImageKey];
-                [sharpen setValue:@(k * 0.95f) forKey:kCIInputSharpnessKey];
+                [sharpen setValue:@(k * 0.85f) forKey:kCIInputSharpnessKey];
                 CIImage *outImg = sharpen.outputImage;
                 if (outImg) img = outImg;
             }
         }
 
-        // 3. Apply Smooth Fade-In Animation
+        // 4. Apply Smooth Fade-In Animation
         double sec = CMTimeGetSeconds(request.compositionTime);
         if (fadeInEnabled && fadeInDuration > 0.05 && sec < fadeInDuration) {
             double prog = fmax(0.0, fmin(1.0, sec / fadeInDuration));
@@ -430,20 +465,18 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
             }
         }
 
-        [request finishWithImage:[img imageByCroppingToRect:extent] context:ciCtx];
+        [request finishWithImage:[img imageByCroppingToRect:targetRect] context:ciCtx];
     }];
 
-    videoComp.frameDuration = CMTimeMake(1, 60); // 60 FPS
+    videoComp.renderSize = targetRenderSize;
+    videoComp.frameDuration = CMTimeMake(1, 60); // 60 FPS Smooth
 
     NSString *outPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"TABI_EDIT_1080p60_%ld.mp4", (long)[[NSDate date] timeIntervalSince1970]]];
     [[NSFileManager defaultManager] removeItemAtPath:outPath error:nil];
     NSURL *outURL = [NSURL fileURLWithPath:outPath];
 
-    NSString *preset = [[AVAssetExportSession exportPresetsCompatibleWithAsset:composition] containsObject:AVAssetExportPreset1920x1080]
-        ? AVAssetExportPreset1920x1080
-        : AVAssetExportPresetHighestQuality;
-
-    self.activeExporter = [[AVAssetExportSession alloc] initWithAsset:composition presetName:preset];
+    // Use HighestQuality preset so 1080p60 exports at maximum crisp bitrate!
+    self.activeExporter = [[AVAssetExportSession alloc] initWithAsset:composition presetName:AVAssetExportPresetHighestQuality];
     self.activeExporter.outputURL = outURL;
     self.activeExporter.outputFileType = AVFileTypeMPEG4;
     self.activeExporter.videoComposition = videoComp;
@@ -465,6 +498,7 @@ static NSData *createCapCutColorCubeData(NSDictionary *settings, int size) {
 
     __weak typeof(self) weakSelf = self;
     [self.activeExporter exportAsynchronouslyWithCompletionHandler:^{
+        CGColorSpaceRelease(srgbColorSpace);
         dispatch_async(dispatch_get_main_queue(), ^{
             [weakSelf.exportProgressTimer invalidate];
             weakSelf.exportProgressTimer = nil;

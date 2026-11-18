@@ -360,7 +360,7 @@
       </div>
       <div class="checkbox-row">
         <span>Enable Fade-In Animation</span>
-        <input type="checkbox" id="fadeInEnabled" checked />
+        <input type="checkbox" id="fadeInEnabled" />
       </div>
       <div class="control-row">
         <div class="control-label">
@@ -541,10 +541,11 @@
         fadeMult = Math.max(0.05, Math.min(1.0, relTime / fadeDur));
       }
 
-      // Match PC Live Preview & sRGB 3D LUT 1:1 on iOS <video>
-      const bPct = Math.round((100 + br * 0.35 + bl * 0.22) * fadeMult);
-      const cPct = Math.round(100 + co * 0.35 - bl * 0.25);
-      const satPct = Math.round(100 + sa * 0.90 + hslAvg * 0.55);
+      // Keep preview 100% bright & vivid (matches native CIHighlightShadowAdjust + CIColorControls + CIVibrance)
+      const baseBright = br > 0 ? (100 + br * 0.25) : (100 + br * 0.05);
+      const bPct = Math.round(baseBright * fadeMult);
+      const cPct = Math.round(103 + (co > 0 ? co * 0.2 : 0));
+      const satPct = Math.round(100 + sa * 0.65 + hslAvg * 0.50);
 
       video.style.webkitFilter = `brightness(${bPct}%) contrast(${cPct}%) saturate(${satPct}%)`;
       video.style.filter = `brightness(${bPct}%) contrast(${cPct}%) saturate(${satPct}%)`;

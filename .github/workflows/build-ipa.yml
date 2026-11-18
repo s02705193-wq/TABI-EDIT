@@ -40,6 +40,7 @@ jobs:
             -framework AVFoundation \
             -framework CoreImage \
             -framework CoreMedia \
+            -framework CoreVideo \
             -framework Photos \
             -framework CoreGraphics \
             -o Payload/TabiEdit.app/TabiEdit

@@ -294,8 +294,8 @@
     <div class="brand">
       <div class="brand-logo">TE</div>
       <div class="brand-title">
-        <h1>TABI EDIT</h1>
-        <span>Native iOS 1080p 60FPS • Split • Fade-In • Voice</span>
+        <h1>TABI EDIT v1.0.8</h1>
+        <span>Bright HD Engine • Split • Fade-In • Voice</span>
       </div>
     </div>
     <div class="badge" id="activePresetBadge">🔥 Default 1</div>
@@ -541,11 +541,11 @@
         fadeMult = Math.max(0.05, Math.min(1.0, relTime / fadeDur));
       }
 
-      // Keep preview 100% bright & vivid (matches native CIHighlightShadowAdjust + CIColorControls + CIVibrance)
-      const baseBright = br > 0 ? (100 + br * 0.25) : (100 + br * 0.05);
+      // Keep preview 100% bright & vivid (matches native CIGammaAdjust 0.85 + CIExposureAdjust +0.16 EV)
+      const baseBright = 106 + (br > 0 ? br * 0.25 : 0);
       const bPct = Math.round(baseBright * fadeMult);
-      const cPct = Math.round(103 + (co > 0 ? co * 0.2 : 0));
-      const satPct = Math.round(100 + sa * 0.65 + hslAvg * 0.50);
+      const cPct = 102;
+      const satPct = Math.round(100 + sa * 0.45 + hslAvg * 0.35);
 
       video.style.webkitFilter = `brightness(${bPct}%) contrast(${cPct}%) saturate(${satPct}%)`;
       video.style.filter = `brightness(${bPct}%) contrast(${cPct}%) saturate(${satPct}%)`;

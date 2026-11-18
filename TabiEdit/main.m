@@ -21,6 +21,10 @@
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor colorWithRed:0.04 green:0.05 blue:0.07 alpha:1.0];
 
+    // Clear any cached webview assets on launch so new IPA updates always load fresh
+    NSSet *websiteDataTypes = [WKWebsiteDataStore allWebsiteDataTypes];
+    [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:websiteDataTypes modifiedSince:[NSDate dateWithTimeIntervalSince1970:0] completionHandler:^{}];
+
     WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
     config.allowsInlineMediaPlayback = YES;
     config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
@@ -135,7 +139,7 @@
     }];
 }
 
-// Native Color-Managed AVFoundation + CoreImage HD 60FPS Exporter (Bright, Vivid & Crisp!)
+// Native Bright HD Exporter (Zero Darkness + Zero Pixel Tearing!)
 - (void)exportVideoWithPayload:(NSDictionary *)payload {
     if (!self.currentVideoURL || ![[NSFileManager defaultManager] fileExistsAtPath:self.currentVideoURL.path]) {
         [self sendJSEvent:@"window.onExportError('Please select a video first!');"];
@@ -220,9 +224,7 @@
 
     // Read user sliders
     float br = [settings[@"brightness"] ?: @(-23) floatValue];
-    float co = [settings[@"contrast"] ?: @(-31) floatValue];
     float sa = [settings[@"saturation"] ?: @(39) floatValue];
-    float bl = [settings[@"brilliance"] ?: @(-9) floatValue];
     float sharpness = [settings[@"sharpness"] ?: @(98) floatValue];
 
     float hslRed = [settings[@"hslRed"] ?: @(63) floatValue];
@@ -235,43 +237,52 @@
     BOOL fadeInEnabled = [settings[@"fadeInEnabled"] ?: @NO boolValue];
     double fadeInDuration = [settings[@"fadeInDuration"] ?: @(1.2) doubleValue];
 
-    // Calculate bright, clear, non-dark CoreImage filter parameters
-    // 1. Shadow lift so dark rooms/areas are always bright & visible!
-    float shadowLift = 0.22f + ((-co / 100.0f) * 0.20f); // +0.22 to +0.30 shadow lift
-    float highlightRecover = 0.92f;
+    // BRIGHT HD PARAMETERS:
+    // 1. Gamma < 1.0 (0.85) + Exposure +0.16 EV ALWAYS brightens midtones & shadows so video is NEVER dark!
+    float gammaPower = 0.85f - ((br > 0 ? br : 0) / 100.0f) * 0.12f;
+    float exposureEV = 0.16f + ((br > 0 ? br : 0) / 100.0f) * 0.25f;
 
-    // 2. Gentle brightness & crisp contrast (NEVER darkens the video!)
-    float ciBrightness = (br > 0) ? (br / 100.0f) * 0.08f : (br / 100.0f) * 0.015f;
-    float ciContrast = 1.03f + ((co > 0) ? (co / 100.0f) * 0.15f : 0.0f) - ((bl / 100.0f) * 0.04f);
-    float ciSaturation = 1.0f + ((sa / 100.0f) * 0.55f) + ((hslAvg / 100.0f) * 0.42f);
-    float ciVibrance = (hslAvg / 100.0f) * 0.70f;
+    // 2. Saturation & Vibrance (Clean, vivid CapCut colors without darkening!)
+    float ciSaturation = 1.0f + ((sa / 100.0f) * 0.38f) + ((hslAvg / 100.0f) * 0.28f);
+    float ciVibrance = (hslAvg / 100.0f) * 0.45f;
+
+    // 3. Smooth, Tear-Free Sharpening (Single gentle CIUnsharpMask at 0.30 max intensity — ZERO pixel tearing!)
+    float unsharpIntensity = (sharpness / 100.0f) * 0.30f;
 
     AVMutableVideoComposition *videoComp = [AVMutableVideoComposition videoCompositionWithAsset:composition applyingCIFiltersWithHandler:^(AVAsynchronousCIImageFilteringRequest * _Nonnull request) {
         CIImage *img = request.sourceImage;
         CGRect extent = img.extent;
 
-        // 1. Lift Shadows & Balance Highlights (CIHighlightShadowAdjust — keeps video bright & clear!)
-        CIFilter *hsFilter = [CIFilter filterWithName:@"CIHighlightShadowAdjust"];
-        if (hsFilter) {
-            [hsFilter setValue:img forKey:kCIInputImageKey];
-            [hsFilter setValue:@(shadowLift) forKey:@"inputShadowAmount"];
-            [hsFilter setValue:@(highlightRecover) forKey:@"inputHighlightAmount"];
-            CIImage *outImg = hsFilter.outputImage;
+        // Step 1: Brighten Midtones & Shadows with CIGammaAdjust (power < 1.0 = BRIGHTER!)
+        CIFilter *gammaFilter = [CIFilter filterWithName:@"CIGammaAdjust"];
+        if (gammaFilter) {
+            [gammaFilter setValue:img forKey:kCIInputImageKey];
+            [gammaFilter setValue:@(gammaPower) forKey:@"inputPower"];
+            CIImage *outImg = gammaFilter.outputImage;
             if (outImg) img = outImg;
         }
 
-        // 2. Color Controls (Vivid CapCut Saturation + Clean Contrast)
+        // Step 2: Clean Exposure Lift (CIExposureAdjust +0.16 EV)
+        CIFilter *expFilter = [CIFilter filterWithName:@"CIExposureAdjust"];
+        if (expFilter) {
+            [expFilter setValue:img forKey:kCIInputImageKey];
+            [expFilter setValue:@(exposureEV) forKey:kCIInputEVKey];
+            CIImage *outImg = expFilter.outputImage;
+            if (outImg) img = outImg;
+        }
+
+        // Step 3: Vivid Saturation (CIColorControls with brightness = +0.02, contrast = 1.0)
         CIFilter *colorControls = [CIFilter filterWithName:@"CIColorControls"];
         if (colorControls) {
             [colorControls setValue:img forKey:kCIInputImageKey];
-            [colorControls setValue:@(ciBrightness) forKey:kCIInputBrightnessKey];
-            [colorControls setValue:@(ciContrast) forKey:kCIInputContrastKey];
+            [colorControls setValue:@(0.02f) forKey:kCIInputBrightnessKey];
+            [colorControls setValue:@(1.00f) forKey:kCIInputContrastKey];
             [colorControls setValue:@(ciSaturation) forKey:kCIInputSaturationKey];
             CIImage *outImg = colorControls.outputImage;
             if (outImg) img = outImg;
         }
 
-        // 3. Vibrance Boost for HSL Pop (Boosts colors while keeping gray walls clean!)
+        // Step 4: Vibrance Boost for HSL Colors
         CIFilter *vibFilter = [CIFilter filterWithName:@"CIVibrance"];
         if (vibFilter) {
             [vibFilter setValue:img forKey:kCIInputImageKey];
@@ -280,28 +291,27 @@
             if (outImg) img = outImg;
         }
 
-        // 4. Crisp CapCut HD Sharpening (CISharpenLuminance + CIUnsharpMask)
-        if (sharpness > 0.0f) {
-            float k = sharpness / 100.0f;
-            CIFilter *sharpen = [CIFilter filterWithName:@"CISharpenLuminance"];
-            if (sharpen) {
-                [sharpen setValue:img forKey:kCIInputImageKey];
-                [sharpen setValue:@(k * 1.15f) forKey:kCIInputSharpnessKey];
-                [sharpen setValue:@(1.8f) forKey:kCIInputRadiusKey];
-                CIImage *outImg = sharpen.outputImage;
+        // Step 5: Smooth Noise Clean + Tear-Free Gentle Unsharp Mask (No CISharpenLuminance halo tearing!)
+        if (unsharpIntensity > 0.01f) {
+            CIFilter *denoise = [CIFilter filterWithName:@"CINoiseReduction"];
+            if (denoise) {
+                [denoise setValue:img forKey:kCIInputImageKey];
+                [denoise setValue:@(0.012f) forKey:@"inputNoiseLevel"];
+                [denoise setValue:@(0.45f) forKey:kCIInputSharpnessKey];
+                CIImage *outImg = denoise.outputImage;
                 if (outImg) img = outImg;
             }
             CIFilter *unsharp = [CIFilter filterWithName:@"CIUnsharpMask"];
             if (unsharp) {
                 [unsharp setValue:img forKey:kCIInputImageKey];
-                [unsharp setValue:@(2.5f) forKey:kCIInputRadiusKey];
-                [unsharp setValue:@(k * 0.95f) forKey:kCIInputIntensityKey];
+                [unsharp setValue:@(1.5f) forKey:kCIInputRadiusKey];
+                [unsharp setValue:@(unsharpIntensity) forKey:kCIInputIntensityKey];
                 CIImage *outImg = unsharp.outputImage;
                 if (outImg) img = outImg;
             }
         }
 
-        // 5. Optional Smooth Fade-In Animation (Only if enabled by user!)
+        // Step 6: Optional Fade-In Animation (Only if enabled by user)
         double sec = CMTimeGetSeconds(request.compositionTime);
         if (fadeInEnabled && fadeInDuration > 0.05 && sec < fadeInDuration) {
             double prog = fmax(0.0, fmin(1.0, sec / fadeInDuration));
@@ -317,17 +327,23 @@
             }
         }
 
-        // Use context:nil so Apple's native Rec.709 color-managed GPU context renders with zero darkening!
         [request finishWithImage:[img imageByCroppingToRect:extent] context:nil];
     }];
 
-    videoComp.frameDuration = CMTimeMake(1, 60); // 60 FPS Smooth
+    // Preserve explicit Rec.709 HD Color Space so iOS never crushes gamma!
+    videoComp.colorPrimaries = AVVideoColorPrimaries_ITU_R_709_2;
+    videoComp.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_709_2;
+    videoComp.colorTransferFunction = AVVideoTransferFunction_ITU_R_709_2;
 
-    NSString *outPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"TABI_EDIT_1080p60_%ld.mp4", (long)[[NSDate date] timeIntervalSince1970]]];
+    // Match source frame rate so H.264 encoder allocates maximum bits per frame (prevents pixel tearing!)
+    float srcFps = srcVideoTrack.nominalFrameRate;
+    int targetFps = (srcFps >= 24.0f && srcFps <= 60.0f) ? (int)roundf(srcFps) : 30;
+    videoComp.frameDuration = CMTimeMake(1, targetFps);
+
+    NSString *outPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"TABI_EDIT_HD_%ld.mp4", (long)[[NSDate date] timeIntervalSince1970]]];
     [[NSFileManager defaultManager] removeItemAtPath:outPath error:nil];
     NSURL *outURL = [NSURL fileURLWithPath:outPath];
 
-    // HighestQuality preset with native resolution & 60FPS
     self.activeExporter = [[AVAssetExportSession alloc] initWithAsset:composition presetName:AVAssetExportPresetHighestQuality];
     self.activeExporter.outputURL = outURL;
     self.activeExporter.outputFileType = AVFileTypeMPEG4;

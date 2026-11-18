@@ -62,13 +62,10 @@ static float hueWeight(float hue, float center, float halfWidth) {
     return 0.5f * (1.0f + cosf(((float)M_PI * diff) / halfWidth));
 }
 
-// Exact CSS brightness() + contrast() formula used by the Live Preview <video> element!
 static float applyLivePreviewTone(float v, float br, float co, float bl) {
-    // 1. CSS brightness(bFactor) — kept >= 0.96 for Default 1/2 so it NEVER darkens!
     float bFactor = 1.0f + (br * 0.14f) + (bl * 0.10f);
     float x = v * bFactor;
 
-    // 2. CSS contrast(cFactor) around midpoint 0.5 — negative contrast softly lifts shadows!
     float cFactor = 1.0f + (co * 0.18f) - (bl * 0.15f);
     x = (x - 0.5f) * cFactor + 0.5f;
 
@@ -106,10 +103,8 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
                 float h, sat, l;
                 rgbToHsl(r, g, b, &h, &sat, &l);
 
-                // Protect neutral gray walls/floors
                 float chromaGate = fminf(1.0f, fmaxf(0.0f, (sat - 0.08f) / 0.16f));
 
-                // 5-Channel CapCut HSL Hue Weights (Red, Blue, Dark Blue, Purple, Pink)
                 float wRed = hueWeight(h, 0.0f, 42.0f) + hueWeight(h, 16.0f, 24.0f) * 0.4f;
                 float wBlue = hueWeight(h, 195.0f, 40.0f);
                 float wDarkBlue = hueWeight(h, 232.0f, 42.0f);
@@ -123,7 +118,6 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
                     wPurple * hslPurple * 1.10f +
                     wPink * hslPink * 1.15f;
 
-                // Exact Live-Preview Saturation + 5-Channel HSL Boost (NO luminance darkening!)
                 float satMult = 1.0f + (sa * 0.90f * chromaGate) + (hslBoost * chromaGate);
                 sat = fmaxf(0.0f, fminf(1.0f, sat * satMult));
 
@@ -161,8 +155,7 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor colorWithRed:0.04 green:0.05 blue:0.07 alpha:1.0];
 
-    // CRITICAL FIX: Disable ALL CoreImage linear color-space conversions ([NSNull null])!
-    // Filters operate 100% directly on raw display pixels (0..1) just like CSS Live Preview!
+    // Disable all CoreImage linear color-space conversions ([NSNull null])
     self.rawCIContext = [CIContext contextWithOptions:@{
         kCIContextUseSoftwareRenderer: @NO,
         kCIContextWorkingColorSpace: [NSNull null],
@@ -248,7 +241,7 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
     if (self.audioRecorder && self.audioRecorder.isRecording) {
         [self.audioRecorder stop];
         self.audioRecorder = nil;
-        [self sendJSEvent:@"window.onVoiceRecordState(false, '✅ Mic Voiceover Recorded');"];
+        [self sendJSEvent:@"window.onVoiceRecordState(false, '✅ Voiceover Added');"];
         return;
     }
 
@@ -286,7 +279,7 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
     }];
 }
 
-// 1:1 Live-Preview Matched Exporter (Uses rawCIContext with NSNull WorkingColorSpace — Zero Darkness!)
+// Exporter supporting Per-Part Split, Delete, Per-Part CapCut/TikTok Fade-In Timer, Rotate & Mirror!
 - (void)exportVideoWithPayload:(NSDictionary *)payload {
     if (!self.currentVideoURL || ![[NSFileManager defaultManager] fileExistsAtPath:self.currentVideoURL.path]) {
         [self sendJSEvent:@"window.onExportError('Please select a video first!');"];
@@ -316,6 +309,7 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
 
     CMTime insertCursor = kCMTimeZero;
     double assetDuration = CMTimeGetSeconds(sourceAsset.duration);
+    NSMutableArray<NSDictionary *> *compSegments = [NSMutableArray array];
 
     if (segments.count > 0) {
         for (NSDictionary *seg in segments) {
@@ -325,6 +319,7 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
             double dur = en - st;
             if (dur <= 0.05) continue;
 
+            double compStartSec = CMTimeGetSeconds(insertCursor);
             CMTime startCM = CMTimeMakeWithSeconds(st, 600);
             CMTime durCM = CMTimeMakeWithSeconds(dur, 600);
             CMTimeRange range = CMTimeRangeMake(startCM, durCM);
@@ -334,6 +329,21 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
                 [compAudioTrack insertTimeRange:range ofTrack:srcAudioTrack atTime:insertCursor error:nil];
             }
             insertCursor = CMTimeAdd(insertCursor, durCM);
+            double compEndSec = CMTimeGetSeconds(insertCursor);
+
+            BOOL segFadeIn = [seg[@"fadeIn"] ?: @NO boolValue];
+            double segFadeDur = [seg[@"fadeInDuration"] ?: @(0.8) doubleValue];
+            int segRotate = [seg[@"rotate"] ?: @(0) intValue];
+            BOOL segMirror = [seg[@"mirror"] ?: @NO boolValue];
+
+            [compSegments addObject:@{
+                @"compStart": @(compStartSec),
+                @"compEnd": @(compEndSec),
+                @"fadeIn": @(segFadeIn),
+                @"fadeInDuration": @(segFadeDur),
+                @"rotate": @(segRotate),
+                @"mirror": @(segMirror)
+            }];
         }
     } else {
         CMTimeRange fullRange = CMTimeRangeMake(kCMTimeZero, sourceAsset.duration);
@@ -342,6 +352,14 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
             [compAudioTrack insertTimeRange:fullRange ofTrack:srcAudioTrack atTime:kCMTimeZero error:nil];
         }
         insertCursor = sourceAsset.duration;
+        [compSegments addObject:@{
+            @"compStart": @(0.0),
+            @"compEnd": @(assetDuration),
+            @"fadeIn": @NO,
+            @"fadeInDuration": @(0.8),
+            @"rotate": @(0),
+            @"mirror": @NO
+        }];
     }
 
     // Audio Mix (Original Volume + Voice Overlay)
@@ -375,16 +393,49 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
     float sharpness = [settings[@"sharpness"] ?: @(98) floatValue];
     float unsharpIntensity = (sharpness / 100.0f) * 0.42f;
 
-    BOOL fadeInEnabled = [settings[@"fadeInEnabled"] ?: @NO boolValue];
-    double fadeInDuration = [settings[@"fadeInDuration"] ?: @(1.2) doubleValue];
-
     CIContext *rawCtx = self.rawCIContext;
 
     AVMutableVideoComposition *videoComp = [AVMutableVideoComposition videoCompositionWithAsset:composition applyingCIFiltersWithHandler:^(AVAsynchronousCIImageFilteringRequest * _Nonnull request) {
         CIImage *img = request.sourceImage;
         CGRect extent = img.extent;
+        double sec = CMTimeGetSeconds(request.compositionTime);
 
-        // 1. Apply 1:1 Live-Preview Matched LUT directly on raw display pixels (rawCtx has WorkingColorSpace = NSNull!)
+        // Find active timeline segment at current composition time
+        NSDictionary *activeSeg = nil;
+        for (NSDictionary *cs in compSegments) {
+            double cStart = [cs[@"compStart"] doubleValue];
+            double cEnd = [cs[@"compEnd"] doubleValue];
+            if (sec >= cStart - 0.02 && sec <= cEnd + 0.02) {
+                activeSeg = cs;
+                break;
+            }
+        }
+
+        // 1. Per-Part Rotate & Mirror (Horizontal Flip)
+        if (activeSeg) {
+            int rotDeg = [activeSeg[@"rotate"] intValue] % 360;
+            BOOL mirror = [activeSeg[@"mirror"] boolValue];
+            if (rotDeg != 0 || mirror) {
+                CGFloat cx = CGRectGetMidX(extent);
+                CGFloat cy = CGRectGetMidY(extent);
+                CGAffineTransform t = CGAffineTransformIdentity;
+                t = CGAffineTransformTranslate(t, cx, cy);
+                if (rotDeg != 0) {
+                    CGFloat rad = -(CGFloat)rotDeg * (CGFloat)M_PI / 180.0;
+                    t = CGAffineTransformRotate(t, rad);
+                }
+                if (mirror) {
+                    t = CGAffineTransformScale(t, -1.0, 1.0);
+                }
+                t = CGAffineTransformTranslate(t, -cx, -cy);
+
+                CIImage *transformed = [img imageByApplyingTransform:t];
+                CIImage *blackBg = [[CIImage imageWithColor:[CIColor blackColor]] imageByCroppingToRect:extent];
+                img = [[transformed imageByCompositingOverImage:blackBg] imageByCroppingToRect:extent];
+            }
+        }
+
+        // 2. Apply 1:1 Live-Preview Matched LUT directly on raw display pixels
         if (cubeData) {
             CIFilter *cubeFilter = [CIFilter filterWithName:@"CIColorCube"];
             if (cubeFilter) {
@@ -396,7 +447,7 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
             }
         }
 
-        // 2. Crisp HD Edge Sharpening (CIUnsharpMask in raw display space — zero halo darkening!)
+        // 3. Crisp HD Edge Sharpening
         if (unsharpIntensity > 0.01f) {
             CIFilter *unsharp = [CIFilter filterWithName:@"CIUnsharpMask"];
             if (unsharp) {
@@ -408,23 +459,27 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
             }
         }
 
-        // 3. Optional Fade-In Animation
-        double sec = CMTimeGetSeconds(request.compositionTime);
-        if (fadeInEnabled && fadeInDuration > 0.05 && sec < fadeInDuration) {
-            double prog = fmax(0.0, fmin(1.0, sec / fadeInDuration));
-            CGFloat alpha = (CGFloat)(prog * prog * (3.0 - 2.0 * prog));
-            CIFilter *fadeFilter = [CIFilter filterWithName:@"CIColorMatrix"];
-            if (fadeFilter) {
-                [fadeFilter setValue:img forKey:kCIInputImageKey];
-                [fadeFilter setValue:[CIVector vectorWithX:alpha Y:0 Z:0 W:0] forKey:@"inputRVector"];
-                [fadeFilter setValue:[CIVector vectorWithX:0 Y:alpha Z:0 W:0] forKey:@"inputGVector"];
-                [fadeFilter setValue:[CIVector vectorWithX:0 Y:0 Z:alpha W:0] forKey:@"inputBVector"];
-                CIImage *outImg = fadeFilter.outputImage;
-                if (outImg) img = outImg;
+        // 4. Per-Part CapCut/TikTok Fade-In Animation (Triggers at the start of any part where Fade-In is enabled!)
+        if (activeSeg && [activeSeg[@"fadeIn"] boolValue]) {
+            double cStart = [activeSeg[@"compStart"] doubleValue];
+            double fadeDur = [activeSeg[@"fadeInDuration"] doubleValue];
+            double elapsedInPart = fmax(0.0, sec - cStart);
+            if (fadeDur > 0.05 && elapsedInPart < fadeDur) {
+                double prog = fmax(0.0, fmin(1.0, elapsedInPart / fadeDur));
+                // CapCut/TikTok cubic ease-out fade curve from pure black
+                CGFloat alpha = (CGFloat)(1.0 - pow(1.0 - prog, 3.0));
+                CIFilter *fadeFilter = [CIFilter filterWithName:@"CIColorMatrix"];
+                if (fadeFilter) {
+                    [fadeFilter setValue:img forKey:kCIInputImageKey];
+                    [fadeFilter setValue:[CIVector vectorWithX:alpha Y:0 Z:0 W:0] forKey:@"inputRVector"];
+                    [fadeFilter setValue:[CIVector vectorWithX:0 Y:alpha Z:0 W:0] forKey:@"inputGVector"];
+                    [fadeFilter setValue:[CIVector vectorWithX:0 Y:0 Z:alpha W:0] forKey:@"inputBVector"];
+                    CIImage *outImg = fadeFilter.outputImage;
+                    if (outImg) img = outImg;
+                }
             }
         }
 
-        // Render with rawCtx (kCIContextWorkingColorSpace = NSNull -> ZERO linear darkening!)
         [request finishWithImage:[img imageByCroppingToRect:extent] context:rawCtx];
     }];
 

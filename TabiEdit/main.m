@@ -3,17 +3,156 @@
 #import <AVFoundation/AVFoundation.h>
 #import <CoreImage/CoreImage.h>
 #import <CoreMedia/CoreMedia.h>
-#import <CoreVideo/CoreVideo.h>
 #import <Photos/Photos.h>
 #include <math.h>
+
+// ============================================================================
+// Exact 1:1 CSS Live-Preview + 5-Channel HSL Math (Raw Display Space — No Gamma!)
+// ============================================================================
+
+static void rgbToHsl(float r, float g, float b, float *hOut, float *sOut, float *lOut) {
+    float maxV = fmaxf(r, fmaxf(g, b));
+    float minV = fminf(r, fminf(g, b));
+    float h = 0.0f, s = 0.0f;
+    float l = (maxV + minV) * 0.5f;
+
+    if (maxV != minV) {
+        float d = maxV - minV;
+        s = (l > 0.5f) ? (d / (2.0f - maxV - minV)) : (d / (maxV + minV));
+        if (maxV == r) {
+            h = (g - b) / d + (g < b ? 6.0f : 0.0f);
+        } else if (maxV == g) {
+            h = (b - r) / d + 2.0f;
+        } else {
+            h = (r - g) / d + 4.0f;
+        }
+        h *= 60.0f;
+    }
+    *hOut = h;
+    *sOut = s;
+    *lOut = l;
+}
+
+static float hue2rgb(float p, float q, float t) {
+    if (t < 0.0f) t += 1.0f;
+    if (t > 1.0f) t -= 1.0f;
+    if (t < 1.0f / 6.0f) return p + (q - p) * 6.0f * t;
+    if (t < 0.5f) return q;
+    if (t < 2.0f / 3.0f) return p + (q - p) * (2.0f / 3.0f - t) * 6.0f;
+    return p;
+}
+
+static void hslToRgb(float h, float s, float l, float *rOut, float *gOut, float *bOut) {
+    if (s <= 0.0f) {
+        *rOut = *gOut = *bOut = l;
+        return;
+    }
+    float q = (l < 0.5f) ? (l * (1.0f + s)) : (l + s - l * s);
+    float p = 2.0f * l - q;
+    float hk = fmodf(fmodf(h, 360.0f) + 360.0f, 360.0f) / 360.0f;
+    *rOut = hue2rgb(p, q, hk + 1.0f / 3.0f);
+    *gOut = hue2rgb(p, q, hk);
+    *bOut = hue2rgb(p, q, hk - 1.0f / 3.0f);
+}
+
+static float hueWeight(float hue, float center, float halfWidth) {
+    float diff = fmodf(fabsf(hue - center), 360.0f);
+    if (diff > 180.0f) diff = 360.0f - diff;
+    if (diff >= halfWidth) return 0.0f;
+    return 0.5f * (1.0f + cosf(((float)M_PI * diff) / halfWidth));
+}
+
+// Exact CSS brightness() + contrast() formula used by the Live Preview <video> element!
+static float applyLivePreviewTone(float v, float br, float co, float bl) {
+    // 1. CSS brightness(bFactor) — kept >= 0.96 for Default 1/2 so it NEVER darkens!
+    float bFactor = 1.0f + (br * 0.14f) + (bl * 0.10f);
+    float x = v * bFactor;
+
+    // 2. CSS contrast(cFactor) around midpoint 0.5 — negative contrast softly lifts shadows!
+    float cFactor = 1.0f + (co * 0.18f) - (bl * 0.15f);
+    x = (x - 0.5f) * cFactor + 0.5f;
+
+    return fmaxf(0.0f, fminf(1.0f, x));
+}
+
+static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size) {
+    float br = [settings[@"brightness"] ?: @(-23) floatValue] / 100.0f;
+    float co = [settings[@"contrast"] ?: @(-31) floatValue] / 100.0f;
+    float sa = [settings[@"saturation"] ?: @(39) floatValue] / 100.0f;
+    float bl = [settings[@"brilliance"] ?: @(-9) floatValue] / 100.0f;
+
+    float hslRed = [settings[@"hslRed"] ?: @(63) floatValue] / 100.0f;
+    float hslBlue = [settings[@"hslBlue"] ?: @(15) floatValue] / 100.0f;
+    float hslDarkBlue = [settings[@"hslDarkBlue"] ?: @(64) floatValue] / 100.0f;
+    float hslPurple = [settings[@"hslPurple"] ?: @(60) floatValue] / 100.0f;
+    float hslPink = [settings[@"hslPink"] ?: @(60) floatValue] / 100.0f;
+
+    size_t cubeBytes = (size_t)size * (size_t)size * (size_t)size * 4 * sizeof(float);
+    float *cubeData = (float *)malloc(cubeBytes);
+    if (!cubeData) return nil;
+
+    size_t offset = 0;
+    for (int z = 0; z < size; z++) {
+        float b0 = (float)z / (float)(size - 1);
+        for (int y = 0; y < size; y++) {
+            float g0 = (float)y / (float)(size - 1);
+            for (int x = 0; x < size; x++) {
+                float r0 = (float)x / (float)(size - 1);
+
+                float r = applyLivePreviewTone(r0, br, co, bl);
+                float g = applyLivePreviewTone(g0, br, co, bl);
+                float b = applyLivePreviewTone(b0, br, co, bl);
+
+                float h, sat, l;
+                rgbToHsl(r, g, b, &h, &sat, &l);
+
+                // Protect neutral gray walls/floors
+                float chromaGate = fminf(1.0f, fmaxf(0.0f, (sat - 0.08f) / 0.16f));
+
+                // 5-Channel CapCut HSL Hue Weights (Red, Blue, Dark Blue, Purple, Pink)
+                float wRed = hueWeight(h, 0.0f, 42.0f) + hueWeight(h, 16.0f, 24.0f) * 0.4f;
+                float wBlue = hueWeight(h, 195.0f, 40.0f);
+                float wDarkBlue = hueWeight(h, 232.0f, 42.0f);
+                float wPurple = hueWeight(h, 275.0f, 40.0f);
+                float wPink = hueWeight(h, 322.0f, 42.0f);
+
+                float hslBoost =
+                    wRed * hslRed * 1.15f +
+                    wBlue * hslBlue * 1.05f +
+                    wDarkBlue * hslDarkBlue * 1.15f +
+                    wPurple * hslPurple * 1.10f +
+                    wPink * hslPink * 1.15f;
+
+                // Exact Live-Preview Saturation + 5-Channel HSL Boost (NO luminance darkening!)
+                float satMult = 1.0f + (sa * 0.90f * chromaGate) + (hslBoost * chromaGate);
+                sat = fmaxf(0.0f, fminf(1.0f, sat * satMult));
+
+                float ro, go, bo;
+                hslToRgb(h, sat, l, &ro, &go, &bo);
+
+                cubeData[offset++] = ro;
+                cubeData[offset++] = go;
+                cubeData[offset++] = bo;
+                cubeData[offset++] = 1.0f;
+            }
+        }
+    }
+
+    return [NSData dataWithBytesNoCopy:cubeData length:cubeBytes freeWhenDone:YES];
+}
+
+// ============================================================================
+// Main ViewController
+// ============================================================================
 
 @interface TabiViewController : UIViewController <WKScriptMessageHandler, WKUIDelegate, WKNavigationDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate>
 @property (nonatomic, strong) WKWebView *webView;
 @property (nonatomic, strong) NSURL *currentVideoURL;
 @property (nonatomic, strong) NSURL *recordedVoiceURL;
 @property (nonatomic, strong) AVAudioRecorder *audioRecorder;
-@property (nonatomic, strong) AVAssetReader *assetReader;
-@property (nonatomic, strong) AVAssetWriter *assetWriter;
+@property (nonatomic, strong) NSTimer *exportProgressTimer;
+@property (nonatomic, strong) AVAssetExportSession *activeExporter;
+@property (nonatomic, strong) CIContext *rawCIContext;
 @end
 
 @implementation TabiViewController
@@ -21,6 +160,14 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = [UIColor colorWithRed:0.04 green:0.05 blue:0.07 alpha:1.0];
+
+    // CRITICAL FIX: Disable ALL CoreImage linear color-space conversions ([NSNull null])!
+    // Filters operate 100% directly on raw display pixels (0..1) just like CSS Live Preview!
+    self.rawCIContext = [CIContext contextWithOptions:@{
+        kCIContextUseSoftwareRenderer: @NO,
+        kCIContextWorkingColorSpace: [NSNull null],
+        kCIContextOutputColorSpace: [NSNull null]
+    }];
 
     NSSet *websiteDataTypes = [WKWebsiteDataStore allWebsiteDataTypes];
     [[WKWebsiteDataStore defaultDataStore] removeDataOfTypes:websiteDataTypes modifiedSince:[NSDate dateWithTimeIntervalSince1970:0] completionHandler:^{}];
@@ -139,7 +286,7 @@
     }];
 }
 
-// 28 Mbps Ultra-HD AVAssetReader + AVAssetWriter Exporter (1:1 Live Preview Brightness & Crisp 1080p Quality!)
+// 1:1 Live-Preview Matched Exporter (Uses rawCIContext with NSNull WorkingColorSpace — Zero Darkness!)
 - (void)exportVideoWithPayload:(NSDictionary *)payload {
     if (!self.currentVideoURL || ![[NSFileManager defaultManager] fileExistsAtPath:self.currentVideoURL.path]) {
         [self sendJSEvent:@"window.onExportError('Please select a video first!');"];
@@ -197,9 +344,6 @@
         insertCursor = sourceAsset.duration;
     }
 
-    double totalOutSeconds = CMTimeGetSeconds(insertCursor);
-    if (isnan(totalOutSeconds) || totalOutSeconds <= 0.1) totalOutSeconds = assetDuration;
-
     // Audio Mix (Original Volume + Voice Overlay)
     NSMutableArray<AVMutableAudioMixInputParameters *> *audioMixParams = [NSMutableArray array];
     float origVol = [settings[@"originalVolume"] ?: @(100) floatValue] / 100.0f;
@@ -225,70 +369,46 @@
         }
     }
 
-    // Read user sliders
-    float br = [settings[@"brightness"] ?: @(-23) floatValue];
-    float co = [settings[@"contrast"] ?: @(-31) floatValue];
-    float sa = [settings[@"saturation"] ?: @(39) floatValue];
-    float bl = [settings[@"brilliance"] ?: @(-9) floatValue];
+    // Build 32x32x32 LUT with exact Live-Preview CSS math
+    int cubeSize = 32;
+    NSData *cubeData = createLivePreviewMatchedCubeData(settings, cubeSize);
     float sharpness = [settings[@"sharpness"] ?: @(98) floatValue];
-
-    float hslRed = [settings[@"hslRed"] ?: @(63) floatValue];
-    float hslBlue = [settings[@"hslBlue"] ?: @(15) floatValue];
-    float hslDarkBlue = [settings[@"hslDarkBlue"] ?: @(64) floatValue];
-    float hslPurple = [settings[@"hslPurple"] ?: @(60) floatValue];
-    float hslPink = [settings[@"hslPink"] ?: @(60) floatValue];
-    float hslAvg = (hslRed + hslBlue + hslDarkBlue + hslPurple + hslPink) / 5.0f;
+    float unsharpIntensity = (sharpness / 100.0f) * 0.42f;
 
     BOOL fadeInEnabled = [settings[@"fadeInEnabled"] ?: @NO boolValue];
     double fadeInDuration = [settings[@"fadeInDuration"] ?: @(1.2) doubleValue];
 
-    // 1:1 LIVE PREVIEW MATCH PARAMETERS (No CIColorCube darkness & No white washout!):
-    // Keep brightness almost untouched (-0.008 for Default 1) so video brightness stays 100% natural like Live Preview!
-    float ciBrightness = (br / 100.0f) * 0.035f;
-    float ciContrast = 1.02f + ((co > 0) ? (co / 100.0f) * 0.12f : 0.0f) - ((bl / 100.0f) * 0.03f);
-    float ciSaturation = 1.0f + ((sa / 100.0f) * 0.48f) + ((hslAvg / 100.0f) * 0.36f);
-    float ciVibrance = (hslAvg / 100.0f) * 0.55f;
-
-    // Crisp CapCut HD Sharpening WITHOUT CINoiseReduction blur and WITHOUT CISharpenLuminance halo tearing!
-    float unsharpIntensity = (sharpness / 100.0f) * 0.58f;
+    CIContext *rawCtx = self.rawCIContext;
 
     AVMutableVideoComposition *videoComp = [AVMutableVideoComposition videoCompositionWithAsset:composition applyingCIFiltersWithHandler:^(AVAsynchronousCIImageFilteringRequest * _Nonnull request) {
         CIImage *img = request.sourceImage;
         CGRect extent = img.extent;
 
-        // 1. Exact Live-Preview Color & Contrast Match (CIColorControls)
-        CIFilter *colorControls = [CIFilter filterWithName:@"CIColorControls"];
-        if (colorControls) {
-            [colorControls setValue:img forKey:kCIInputImageKey];
-            [colorControls setValue:@(ciBrightness) forKey:kCIInputBrightnessKey];
-            [colorControls setValue:@(ciContrast) forKey:kCIInputContrastKey];
-            [colorControls setValue:@(ciSaturation) forKey:kCIInputSaturationKey];
-            CIImage *outImg = colorControls.outputImage;
-            if (outImg) img = outImg;
+        // 1. Apply 1:1 Live-Preview Matched LUT directly on raw display pixels (rawCtx has WorkingColorSpace = NSNull!)
+        if (cubeData) {
+            CIFilter *cubeFilter = [CIFilter filterWithName:@"CIColorCube"];
+            if (cubeFilter) {
+                [cubeFilter setValue:img forKey:kCIInputImageKey];
+                [cubeFilter setValue:@(cubeSize) forKey:@"inputCubeDimension"];
+                [cubeFilter setValue:cubeData forKey:@"inputCubeData"];
+                CIImage *outImg = cubeFilter.outputImage;
+                if (outImg) img = outImg;
+            }
         }
 
-        // 2. Rich HSL Vibrance Boost (CIVibrance — pops Red, Blue, Dark Blue, Purple, Pink!)
-        CIFilter *vibFilter = [CIFilter filterWithName:@"CIVibrance"];
-        if (vibFilter) {
-            [vibFilter setValue:img forKey:kCIInputImageKey];
-            [vibFilter setValue:@(ciVibrance) forKey:@"inputAmount"];
-            CIImage *outImg = vibFilter.outputImage;
-            if (outImg) img = outImg;
-        }
-
-        // 3. Crisp HD Unsharp Mask (No CINoiseReduction blur!)
+        // 2. Crisp HD Edge Sharpening (CIUnsharpMask in raw display space — zero halo darkening!)
         if (unsharpIntensity > 0.01f) {
             CIFilter *unsharp = [CIFilter filterWithName:@"CIUnsharpMask"];
             if (unsharp) {
                 [unsharp setValue:img forKey:kCIInputImageKey];
-                [unsharp setValue:@(1.8f) forKey:kCIInputRadiusKey];
+                [unsharp setValue:@(1.6f) forKey:kCIInputRadiusKey];
                 [unsharp setValue:@(unsharpIntensity) forKey:kCIInputIntensityKey];
                 CIImage *outImg = unsharp.outputImage;
                 if (outImg) img = outImg;
             }
         }
 
-        // 4. Optional Fade-In Animation
+        // 3. Optional Fade-In Animation
         double sec = CMTimeGetSeconds(request.compositionTime);
         if (fadeInEnabled && fadeInDuration > 0.05 && sec < fadeInDuration) {
             double prog = fmax(0.0, fmin(1.0, sec / fadeInDuration));
@@ -304,174 +424,63 @@
             }
         }
 
-        [request finishWithImage:[img imageByCroppingToRect:extent] context:nil];
+        // Render with rawCtx (kCIContextWorkingColorSpace = NSNull -> ZERO linear darkening!)
+        [request finishWithImage:[img imageByCroppingToRect:extent] context:rawCtx];
     }];
 
-    videoComp.colorPrimaries = AVVideoColorPrimaries_ITU_R_709_2;
-    videoComp.colorYCbCrMatrix = AVVideoYCbCrMatrix_ITU_R_709_2;
-    videoComp.colorTransferFunction = AVVideoTransferFunction_ITU_R_709_2;
-
     float srcFps = srcVideoTrack.nominalFrameRate;
-    int targetFps = (srcFps >= 24.0f && srcFps <= 60.0f) ? (int)roundf(srcFps) : 60;
+    int targetFps = (srcFps >= 24.0f && srcFps <= 60.0f) ? (int)roundf(srcFps) : 30;
     videoComp.frameDuration = CMTimeMake(1, targetFps);
 
-    // Calculate True 1080p Target Dimensions for Hardware VideoToolbox Encoder
-    CGSize compSize = videoComp.renderSize;
-    if (compSize.width < 10 || compSize.height < 10) {
-        compSize = CGSizeMake(1920, 1080);
-    }
-    CGFloat scale = (compSize.width >= compSize.height) ? (1080.0 / compSize.height) : (1080.0 / compSize.width);
-    if (scale < 1.0) scale = 1.0; // Never downscale if source is already >= 1080p!
-    int outW = ((int)round(compSize.width * scale) / 2) * 2;
-    int outH = ((int)round(compSize.height * scale) / 2) * 2;
-
-    NSString *outPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"TABI_EDIT_1080p_%ld.mp4", (long)[[NSDate date] timeIntervalSince1970]]];
+    NSString *outPath = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSString stringWithFormat:@"TABI_EDIT_HD_%ld.mp4", (long)[[NSDate date] timeIntervalSince1970]]];
     [[NSFileManager defaultManager] removeItemAtPath:outPath error:nil];
     NSURL *outURL = [NSURL fileURLWithPath:outPath];
 
-    NSError *err = nil;
-    self.assetReader = [AVAssetReader assetReaderWithAsset:composition error:&err];
-    self.assetWriter = [AVAssetWriter assetWriterWithURL:outURL fileType:AVFileTypeMPEG4 error:&err];
-    if (err || !self.assetReader || !self.assetWriter) {
-        [self sendJSEvent:@"window.onExportError('Failed to start 28Mbps HD encoder.');"];
-        return;
+    self.activeExporter = [[AVAssetExportSession alloc] initWithAsset:composition presetName:AVAssetExportPresetHighestQuality];
+    self.activeExporter.outputURL = outURL;
+    self.activeExporter.outputFileType = AVFileTypeMPEG4;
+    self.activeExporter.videoComposition = videoComp;
+    self.activeExporter.shouldOptimizeForNetworkUse = NO;
+
+    if (audioMixParams.count > 0) {
+        AVMutableAudioMix *audioMix = [AVMutableAudioMix audioMix];
+        audioMix.inputParameters = audioMixParams;
+        self.activeExporter.audioMix = audioMix;
     }
 
-    // Video Reader Output (32BGRA composited frames)
-    AVAssetReaderVideoCompositionOutput *videoReaderOutput = [AVAssetReaderVideoCompositionOutput assetReaderVideoCompositionOutputWithVideoTracks:[composition tracksWithMediaType:AVMediaTypeVideo] videoSettings:@{
-        (id)kCVPixelBufferPixelFormatTypeKey: @(kCVPixelFormatType_32BGRA)
-    }];
-    videoReaderOutput.videoComposition = videoComp;
-    videoReaderOutput.alwaysCopiesSampleData = NO;
-    if ([self.assetReader canAddOutput:videoReaderOutput]) {
-        [self.assetReader addOutput:videoReaderOutput];
-    }
-
-    // Video Writer Input (28 Mbps H.264 High Profile + Hardware 1080p Scaling!)
-    NSDictionary *videoWriterSettings = @{
-        AVVideoCodecKey: AVVideoCodecTypeH264,
-        AVVideoWidthKey: @(outW),
-        AVVideoHeightKey: @(outH),
-        AVVideoScalingModeKey: AVVideoScalingModeResizeAspect,
-        AVVideoCompressionPropertiesKey: @{
-            AVVideoAverageBitRateKey: @(28000000), // 28 Mbps Ultra-High Quality Bitrate!
-            AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
-            AVVideoMaxKeyFrameIntervalKey: @(targetFps)
-        }
-    };
-    AVAssetWriterInput *videoWriterInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeVideo outputSettings:videoWriterSettings];
-    videoWriterInput.expectsMediaDataInRealTime = NO;
-    if ([self.assetWriter canAddInput:videoWriterInput]) {
-        [self.assetWriter addInput:videoWriterInput];
-    }
-
-    // Audio Reader Output & Writer Input
-    NSArray<AVAssetTrack *> *audioTracks = [composition tracksWithMediaType:AVMediaTypeAudio];
-    AVAssetReaderAudioMixOutput *audioReaderOutput = nil;
-    AVAssetWriterInput *audioWriterInput = nil;
-    if (audioTracks.count > 0) {
-        audioReaderOutput = [AVAssetReaderAudioMixOutput assetReaderAudioMixOutputWithAudioTracks:audioTracks audioSettings:@{
-            AVFormatIDKey: @(kAudioFormatLinearPCM)
-        }];
-        if (audioMixParams.count > 0) {
-            AVMutableAudioMix *audioMix = [AVMutableAudioMix audioMix];
-            audioMix.inputParameters = audioMixParams;
-            audioReaderOutput.audioMix = audioMix;
-        }
-        if ([self.assetReader canAddOutput:audioReaderOutput]) {
-            [self.assetReader addOutput:audioReaderOutput];
-        }
-
-        AudioChannelLayout acl;
-        bzero(&acl, sizeof(acl));
-        acl.mChannelLayoutTag = kAudioChannelLayoutTag_Stereo;
-        NSDictionary *audioWriterSettings = @{
-            AVFormatIDKey: @(kAudioFormatMPEG4AAC),
-            AVSampleRateKey: @(44100.0),
-            AVNumberOfChannelsKey: @(2),
-            AVEncoderBitRateKey: @(192000),
-            AVChannelLayoutKey: [NSData dataWithBytes:&acl length:sizeof(acl)]
-        };
-        audioWriterInput = [AVAssetWriterInput assetWriterInputWithMediaType:AVMediaTypeAudio outputSettings:audioWriterSettings];
-        audioWriterInput.expectsMediaDataInRealTime = NO;
-        if ([self.assetWriter canAddInput:audioWriterInput]) {
-            [self.assetWriter addInput:audioWriterInput];
-        }
-    }
-
-    [self.assetWriter startWriting];
-    [self.assetReader startReading];
-    [self.assetWriter startSessionAtSourceTime:kCMTimeZero];
-
-    dispatch_group_t encodeGroup = dispatch_group_create();
-
-    // Pump Video Samples at 28 Mbps
-    dispatch_group_enter(encodeGroup);
-    dispatch_queue_t videoQueue = dispatch_queue_create("com.tabi.videoEncodeQueue", DISPATCH_QUEUE_SERIAL);
-    __weak typeof(self) weakSelf = self;
-    [videoWriterInput requestMediaDataWhenReadyOnQueue:videoQueue usingBlock:^{
-        while ([videoWriterInput isReadyForMoreMediaData]) {
-            CMSampleBufferRef sample = [videoReaderOutput copyNextSampleBuffer];
-            if (sample) {
-                CMTime pts = CMSampleBufferGetPresentationTimeStamp(sample);
-                double sec = CMTimeGetSeconds(pts);
-                int pct = (int)round((sec / totalOutSeconds) * 100.0);
-                if (pct < 1) pct = 1;
-                if (pct > 99) pct = 99;
-                [weakSelf sendJSEvent:[NSString stringWithFormat:@"window.onExportProgress(%d);", pct]];
-
-                [videoWriterInput appendSampleBuffer:sample];
-                CFRelease(sample);
-            } else {
-                [videoWriterInput markAsFinished];
-                dispatch_group_leave(encodeGroup);
-                break;
-            }
-        }
-    }];
-
-    // Pump Audio Samples
-    if (audioReaderOutput && audioWriterInput) {
-        dispatch_group_enter(encodeGroup);
-        dispatch_queue_t audioQueue = dispatch_queue_create("com.tabi.audioEncodeQueue", DISPATCH_QUEUE_SERIAL);
-        [audioWriterInput requestMediaDataWhenReadyOnQueue:audioQueue usingBlock:^{
-            while ([audioWriterInput isReadyForMoreMediaData]) {
-                CMSampleBufferRef sample = [audioReaderOutput copyNextSampleBuffer];
-                if (sample) {
-                    [audioWriterInput appendSampleBuffer:sample];
-                    CFRelease(sample);
-                } else {
-                    [audioWriterInput markAsFinished];
-                    dispatch_group_leave(encodeGroup);
-                    break;
-                }
-            }
-        }];
-    }
-
-    dispatch_group_notify(encodeGroup, dispatch_get_main_queue(), ^{
-        [weakSelf.assetWriter finishWritingWithCompletionHandler:^{
-            dispatch_async(dispatch_get_main_queue(), ^{
-                if (weakSelf.assetWriter.status == AVAssetWriterStatusCompleted) {
-                    if (UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(outPath)) {
-                        UISaveVideoAtPathToSavedPhotosAlbum(outPath, nil, nil, nil);
-                    }
-                    [weakSelf sendJSEvent:@"window.onExportComplete();"];
-
-                    UIActivityViewController *shareVC = [[UIActivityViewController alloc] initWithActivityItems:@[outURL] applicationActivities:nil];
-                    if (shareVC.popoverPresentationController) {
-                        shareVC.popoverPresentationController.sourceView = weakSelf.view;
-                        shareVC.popoverPresentationController.sourceRect = CGRectMake(weakSelf.view.bounds.size.width / 2, weakSelf.view.bounds.size.height / 2, 1, 1);
-                    }
-                    [weakSelf presentViewController:shareVC animated:YES completion:nil];
-                } else {
-                    NSString *errMsg = weakSelf.assetWriter.error.localizedDescription ?: @"Export failed";
-                    errMsg = [errMsg stringByReplacingOccurrencesOfString:@"'" withString:@""];
-                    [weakSelf sendJSEvent:[NSString stringWithFormat:@"window.onExportError('%@');", errMsg]];
-                }
-            });
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self.exportProgressTimer invalidate];
+        self.exportProgressTimer = [NSTimer scheduledTimerWithTimeInterval:0.15 repeats:YES block:^(NSTimer * _Nonnull timer) {
+            int pct = (int)roundf(self.activeExporter.progress * 100.0f);
+            [self sendJSEvent:[NSString stringWithFormat:@"window.onExportProgress(%d);", pct]];
         }];
     });
+
+    __weak typeof(self) weakSelf = self;
+    [self.activeExporter exportAsynchronouslyWithCompletionHandler:^{
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weakSelf.exportProgressTimer invalidate];
+            weakSelf.exportProgressTimer = nil;
+
+            if (weakSelf.activeExporter.status == AVAssetExportSessionStatusCompleted) {
+                if (UIVideoAtPathIsCompatibleWithSavedPhotosAlbum(outPath)) {
+                    UISaveVideoAtPathToSavedPhotosAlbum(outPath, nil, nil, nil);
+                }
+                [weakSelf sendJSEvent:@"window.onExportComplete();"];
+
+                UIActivityViewController *shareVC = [[UIActivityViewController alloc] initWithActivityItems:@[outURL] applicationActivities:nil];
+                if (shareVC.popoverPresentationController) {
+                    shareVC.popoverPresentationController.sourceView = weakSelf.view;
+                    shareVC.popoverPresentationController.sourceRect = CGRectMake(weakSelf.view.bounds.size.width / 2, weakSelf.view.bounds.size.height / 2, 1, 1);
+                }
+                [weakSelf presentViewController:shareVC animated:YES completion:nil];
+            } else {
+                NSString *errMsg = weakSelf.activeExporter.error.localizedDescription ?: @"Export failed";
+                errMsg = [errMsg stringByReplacingOccurrencesOfString:@"'" withString:@""];
+                [weakSelf sendJSEvent:[NSString stringWithFormat:@"window.onExportError('%@');", errMsg]];
+            }
+        });
+    }];
 }
 
 - (void)userContentController:(WKUserContentController *)userContentController

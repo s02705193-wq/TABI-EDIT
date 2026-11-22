@@ -328,7 +328,19 @@ static NSData *createLivePreviewMatchedCubeData(NSDictionary *settings, int size
             if (srcAudioTrack && compAudioTrack) {
                 [compAudioTrack insertTimeRange:range ofTrack:srcAudioTrack atTime:insertCursor error:nil];
             }
-            insertCursor = CMTimeAdd(insertCursor, durCM);
+
+            double segSpeed = [seg[@"speed"] ?: @(1.0) doubleValue];
+            if (segSpeed <= 0.1) segSpeed = 1.0;
+            CMTime finalDurCM = durCM;
+            if (fabs(segSpeed - 1.0) > 0.02) {
+                finalDurCM = CMTimeMakeWithSeconds(dur / segSpeed, 600);
+                [compVideoTrack scaleTimeRange:CMTimeRangeMake(insertCursor, durCM) toDuration:finalDurCM];
+                if (srcAudioTrack && compAudioTrack) {
+                    [compAudioTrack scaleTimeRange:CMTimeRangeMake(insertCursor, durCM) toDuration:finalDurCM];
+                }
+            }
+
+            insertCursor = CMTimeAdd(insertCursor, finalDurCM);
             double compEndSec = CMTimeGetSeconds(insertCursor);
 
             BOOL segFadeIn = [seg[@"fadeIn"] ?: @NO boolValue];

@@ -3,17 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>TABI EDIT v1.2.0 — CapCut/TikTok Timeline Studio</title>
+  <title>TABI EDIT v1.3.0 — CapCut Pro Timeline Studio</title>
   <style>
     :root {
-      --bg-black: #0a0a0c;
-      --bg-dark: #141418;
-      --bg-card: #1c1c22;
-      --border: #2a2a34;
-      --accent: #00e5ff;
-      --accent-purple: #8b5cf6;
+      --bg-black: #0b0b0e;
+      --bg-timeline: #121216;
+      --bg-card: #1b1b22;
+      --border: #2a2a35;
+      --cyan: #00d2eb;
+      --purple: #8b5cf6;
       --text: #ffffff;
-      --text-muted: #9ca3af;
+      --text-dim: #7c7c88;
       --danger: #ef4444;
     }
 
@@ -33,114 +33,122 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      padding-top: env(safe-area-inset-top, 18px);
-      padding-bottom: env(safe-area-inset-bottom, 12px);
+      padding-top: env(safe-area-inset-top, 16px);
+      padding-bottom: env(safe-area-inset-bottom, 10px);
     }
 
-    /* Screenshot 1: Top Action Bar (Mirror, Rotate, Version, Export) */
+    /* Top Bar matching Screenshot (X, Mirror, Rotate | AI UHD v | Cyan Export) */
     .top-bar {
-      height: 52px;
-      padding: 0 14px;
+      height: 50px;
+      padding: 0 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       background: var(--bg-black);
-      border-bottom: 1px solid #1a1a20;
       flex-shrink: 0;
     }
 
-    .top-tools {
+    .top-left {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 10px;
     }
 
-    .icon-btn {
+    .top-icon-btn {
       background: transparent;
       border: none;
-      color: #c4c4cc;
+      color: #d4d4d8;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 36px;
-      height: 36px;
+      cursor: pointer;
+    }
+
+    .top-icon-btn:active, .top-icon-btn.active {
+      color: var(--cyan);
+      background: rgba(0, 210, 235, 0.15);
+    }
+
+    .top-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-ai-uhd {
+      background: #23242a;
+      color: #f4f4f5;
+      border: 1px solid #34353e;
+      padding: 6px 11px;
       border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 4px;
       cursor: pointer;
     }
 
-    .icon-btn:active, .icon-btn.active {
-      color: var(--accent);
-      background: rgba(0, 229, 255, 0.14);
-    }
-
-    .app-brand {
-      font-size: 13px;
-      font-weight: 800;
-      letter-spacing: 0.5px;
-      color: #e2e8f0;
-    }
-
-    .app-brand span {
-      color: var(--accent);
-      font-size: 11px;
-    }
-
-    .btn-top-export {
-      background: linear-gradient(135deg, var(--accent), var(--accent-purple));
-      color: #fff;
+    .btn-export-cyan {
+      background: var(--cyan);
+      color: #061014;
       border: none;
-      padding: 7px 15px;
-      border-radius: 20px;
+      padding: 7px 16px;
+      border-radius: 8px;
       font-size: 13px;
       font-weight: 800;
       cursor: pointer;
-      box-shadow: 0 2px 12px rgba(0, 229, 255, 0.3);
     }
 
-    .btn-top-export:disabled {
+    .btn-export-cyan:disabled {
       opacity: 0.4;
     }
 
-    /* Center Video Preview Area */
+    /* Center Video Preview with CapCut Cyan Selection Border */
     .preview-stage {
       flex: 1;
       position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: #050507;
+      background: var(--bg-black);
+      padding: 4px 6px;
       overflow: hidden;
-      min-height: 190px;
+      min-height: 175px;
     }
 
     .empty-import-box {
       border: 2px dashed #2e3240;
       border-radius: 16px;
-      padding: 28px 22px;
+      padding: 26px 20px;
       text-align: center;
-      background: rgba(20, 20, 26, 0.8);
+      background: rgba(24, 24, 32, 0.85);
       cursor: pointer;
-      max-width: 310px;
+      max-width: 300px;
     }
 
-    .video-viewport {
+    .video-frame-cyan {
       display: none;
       position: relative;
-      width: 100%;
-      height: 100%;
+      max-width: 100%;
+      max-height: 100%;
+      border: 2px solid var(--cyan);
+      background: #000;
+      overflow: hidden;
       align-items: center;
       justify-content: center;
-      overflow: hidden;
     }
 
     video#previewVideo {
       max-width: 100%;
-      max-height: 100%;
+      max-height: 220px;
       display: block;
-      transition: transform 0.18s ease;
+      transition: transform 0.15s ease;
     }
 
-    /* Authentic CapCut/TikTok Black Fade-In Overlay */
     #fadeBlackOverlay {
       position: absolute;
       inset: 0;
@@ -150,225 +158,317 @@
       z-index: 6;
     }
 
-    .preset-pill-overlay {
-      position: absolute;
-      top: 10px;
-      left: 12px;
-      background: rgba(0, 0, 0, 0.65);
-      border: 1px solid rgba(0, 229, 255, 0.4);
-      color: var(--accent);
-      font-size: 10px;
-      font-weight: 800;
-      padding: 4px 9px;
-      border-radius: 6px;
-      z-index: 8;
-      pointer-events: none;
-    }
-
-    /* Playback Time & Play Button Bar */
-    .playback-bar {
-      height: 38px;
+    /* Middle Control Row: [Fullscreen]   [Play Triangle]   [Diamond+ Undo Redo] */
+    .mid-controls {
+      height: 42px;
       padding: 0 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       background: var(--bg-black);
-      border-top: 1px solid #1a1a22;
       flex-shrink: 0;
     }
 
-    .play-btn {
+    .mid-left, .mid-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      width: 110px;
+    }
+
+    .mid-right {
+      justify-content: flex-end;
+    }
+
+    .btn-play-center {
       background: none;
       border: none;
-      color: #fff;
-      font-size: 15px;
-      font-weight: 800;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .time-readout {
-      font-size: 12px;
-      font-family: monospace;
-      color: var(--text-muted);
-    }
-
-    .time-readout b {
-      color: #fff;
-    }
-
-    /* Screenshot 2: CapCut / TikTok Visual Timeline Area */
-    .timeline-area {
-      background: var(--bg-dark);
-      padding: 10px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      border-top: 1px solid var(--border);
-      position: relative;
-      flex-shrink: 0;
-    }
-
-    /* Scrubber slider with white Playhead feeling */
-    .scrubber-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    input[type="range"].timeline-scrubber {
-      width: 100%;
-      accent-color: #ffffff;
-      height: 6px;
-    }
-
-    /* Filmstrip Track + [+] Button */
-    .filmstrip-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      overflow-x: auto;
-      padding: 4px 0;
-      min-height: 58px;
-    }
-
-    .clip-block {
-      position: relative;
-      height: 50px;
-      min-width: 88px;
-      flex: 1;
-      border-radius: 7px;
-      background: linear-gradient(90deg, #232736 0%, #2e3346 50%, #232736 100%);
-      border: 2px solid #383e54;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      padding: 5px 8px;
-      cursor: pointer;
-      overflow: hidden;
-    }
-
-    /* CapCut White Selection Handles on Selected Part */
-    .clip-block.selected {
-      border: 2.5px solid #ffffff;
-      box-shadow: 0 0 12px rgba(255, 255, 255, 0.25);
-    }
-
-    .clip-block.selected::before,
-    .clip-block.selected::after {
-      content: '';
-      position: absolute;
-      top: 0;
-      bottom: 0;
-      width: 6px;
-      background: #ffffff;
-    }
-
-    .clip-block.selected::before { left: 0; }
-    .clip-block.selected::after { right: 0; }
-
-    .clip-top-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 4px;
-      padding: 0 4px;
-    }
-
-    .clip-title {
-      font-size: 11px;
-      font-weight: 800;
-      color: #fff;
-    }
-
-    .clip-time {
-      font-size: 10px;
-      font-family: monospace;
-      color: #cbd5e1;
-      padding: 0 4px;
-    }
-
-    .clip-badges {
-      display: flex;
-      gap: 4px;
-      padding: 0 4px;
-    }
-
-    .badge-fade {
-      background: var(--accent-purple);
-      color: #fff;
-      font-size: 9px;
-      font-weight: 800;
-      padding: 1px 5px;
-      border-radius: 4px;
-    }
-
-    .badge-rot {
-      background: rgba(0, 229, 255, 0.25);
-      color: var(--accent);
-      font-size: 9px;
-      font-weight: 800;
-      padding: 1px 5px;
-      border-radius: 4px;
-    }
-
-    .btn-add-clip {
-      width: 38px;
-      height: 38px;
-      border-radius: 9px;
-      background: #ffffff;
-      color: #000000;
-      font-size: 22px;
-      font-weight: 700;
-      border: none;
-      flex-shrink: 0;
+      color: #ffffff;
+      width: 40px;
+      height: 40px;
       display: flex;
       align-items: center;
       justify-content: center;
       cursor: pointer;
     }
 
-    /* "+ Add audio" Track Bar from Screenshot 2 */
-    .audio-track-bar {
-      height: 34px;
-      background: #1e1e26;
-      border: 1px solid #2b2b36;
-      border-radius: 7px;
-      padding: 0 12px;
+    .mid-icon-btn {
+      background: none;
+      border: none;
+      color: #c4c4cc;
+      width: 28px;
+      height: 28px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      color: #a1a1aa;
-      font-size: 12px;
-      font-weight: 600;
+      justify-content: center;
       cursor: pointer;
     }
 
-    .audio-track-bar.recording {
-      background: rgba(239, 68, 68, 0.2);
+    .mid-icon-btn:disabled {
+      opacity: 0.3;
+    }
+
+    .mid-icon-btn.active {
+      color: var(--purple);
+    }
+
+    /* CapCut Timeline Workspace (Ruler + Scrollable Filmstrip + Fixed Center White Playhead) */
+    .timeline-workspace {
+      position: relative;
+      height: 175px;
+      background: var(--bg-timeline);
+      border-top: 1px solid #1e1e26;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .timecode-floating {
+      position: absolute;
+      top: 6px;
+      left: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      color: #e4e4e7;
+      z-index: 15;
+      background: rgba(18, 18, 22, 0.85);
+      padding: 2px 6px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+
+    .timecode-floating span {
+      color: var(--text-dim);
+    }
+
+    /* Fixed Long White Vertical Playhead Line in Center (Exact Screenshot Match!) */
+    .center-playhead-line {
+      position: absolute;
+      top: 24px;
+      bottom: 8px;
+      left: 50%;
+      width: 2px;
+      background: #ffffff;
+      transform: translateX(-50%);
+      z-index: 25;
+      pointer-events: none;
+      box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Horizontally Scrollable Track Container */
+    .timeline-scroll {
+      flex: 1;
+      overflow-x: scroll;
+      overflow-y: hidden;
+      -webkit-overflow-scrolling: touch;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      padding-top: 6px;
+    }
+
+    .timeline-scroll::-webkit-scrollbar {
+      display: none;
+    }
+
+    .timeline-inner {
+      display: flex;
+      flex-direction: column;
+      padding-left: 50vw;
+      padding-right: 50vw;
+      min-width: max-content;
+    }
+
+    /* Time Ruler Row (00:00  •  00:02  •  00:04...) */
+    .ruler-row {
+      height: 22px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      color: var(--text-dim);
+      font-size: 10px;
+      font-weight: 600;
+    }
+
+    .ruler-tick {
+      position: absolute;
+      transform: translateX(-50%);
+      white-space: nowrap;
+    }
+
+    .ruler-dot {
+      position: absolute;
+      transform: translateX(-50%);
+      font-size: 10px;
+      color: #52525b;
+    }
+
+    /* Filmstrip Clips Row */
+    .clips-track-row {
+      height: 60px;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      margin-top: 4px;
+      position: relative;
+    }
+
+    /* Individual Split Clip with Real Video Thumbnails */
+    .capcut-clip {
+      position: relative;
+      height: 54px;
+      background-color: #262936;
+      background-repeat: repeat-x;
+      background-size: auto 54px;
+      border-radius: 5px;
+      overflow: hidden;
+      flex-shrink: 0;
+      cursor: pointer;
+      border: 1.5px solid rgba(255, 255, 255, 0.15);
+    }
+
+    /* Selected Clip with Thick White Left/Right CapCut Trim Handles ([ | ... | ]) */
+    .capcut-clip.selected {
+      border-top: 2.5px solid #ffffff;
+      border-bottom: 2.5px solid #ffffff;
+      border-left: none;
+      border-right: none;
+      border-radius: 7px;
+      z-index: 10;
+    }
+
+    .trim-handle {
+      display: none;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 16px;
+      background: #ffffff;
+      align-items: center;
+      justify-content: center;
+      z-index: 12;
+      touch-action: none;
+    }
+
+    .capcut-clip.selected .trim-handle {
+      display: flex;
+    }
+
+    .trim-handle.left {
+      left: 0;
+      border-radius: 6px 0 0 6px;
+    }
+
+    .trim-handle.right {
+      right: 0;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .trim-grip {
+      width: 2px;
+      height: 16px;
+      background: #8e8e98;
+      border-radius: 2px;
+    }
+
+    /* Duration Pill inside Clip (e.g., "1.9s") */
+    .clip-dur-tag {
+      position: absolute;
+      top: 5px;
+      left: 20px;
+      background: rgba(0, 0, 0, 0.55);
+      color: #ffffff;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      pointer-events: none;
+      z-index: 8;
+    }
+
+    /* Fade-In indicator bar at start of clip */
+    .clip-fade-bar {
+      position: absolute;
+      top: 0;
+      left: 16px;
+      height: 100%;
+      background: linear-gradient(90deg, rgba(139, 92, 246, 0.65) 0%, rgba(139, 92, 246, 0.0) 100%);
+      pointer-events: none;
+      z-index: 7;
+      display: flex;
+      align-items: flex-end;
+      padding: 3px 4px;
+    }
+
+    .clip-fade-text {
+      font-size: 9px;
+      font-weight: 800;
+      color: #e9d5ff;
+      white-space: nowrap;
+    }
+
+    /* White Square [+] Button at Right of Track */
+    .btn-plus-white {
+      width: 34px;
+      height: 34px;
+      border-radius: 7px;
+      background: #ffffff;
+      color: #0b0b0e;
+      border: none;
+      font-size: 22px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: 8px;
+      flex-shrink: 0;
+      cursor: pointer;
+    }
+
+    /* Audio / Voice Overlay Track Under Filmstrip */
+    .voice-subtrack {
+      margin-top: 8px;
+      height: 28px;
+      background: #1b1c24;
+      border: 1px solid #2b2d3c;
+      border-radius: 5px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 10px;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #9ca3af;
+      cursor: pointer;
+      width: max-content;
+      min-width: 190px;
+    }
+
+    .voice-subtrack.recording {
+      background: rgba(239, 68, 68, 0.25);
       border-color: var(--danger);
       color: #fca5a5;
     }
 
-    .audio-track-bar.ready {
-      background: rgba(16, 185, 129, 0.16);
+    .voice-subtrack.ready {
+      background: rgba(16, 185, 129, 0.2);
       border-color: #10b981;
       color: #6ee7b7;
     }
 
-    /* Tool Drawer (Pop-up Panel above Bottom Dock for Animations, Volume, Quality) */
+    /* Pop-Up Tool Drawers */
     .tool-drawer {
       display: none;
       background: var(--bg-card);
       border-top: 1px solid var(--border);
       padding: 12px 14px;
-      max-height: 235px;
+      max-height: 230px;
       overflow-y: auto;
       flex-direction: column;
       gap: 10px;
       flex-shrink: 0;
+      z-index: 30;
     }
 
     .tool-drawer.open {
@@ -381,15 +481,15 @@
       justify-content: space-between;
       font-size: 12px;
       font-weight: 800;
-      color: var(--accent);
+      color: var(--cyan);
       padding-bottom: 4px;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     }
 
-    .btn-close-drawer {
+    .btn-done {
       background: none;
       border: none;
-      color: #9ca3af;
+      color: #ffffff;
       font-size: 13px;
       font-weight: 800;
       cursor: pointer;
@@ -402,8 +502,8 @@
     }
 
     .anim-card {
-      width: 78px;
-      height: 74px;
+      width: 74px;
+      height: 70px;
       border-radius: 10px;
       background: #121217;
       border: 2px solid #2d2d3a;
@@ -411,16 +511,17 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 5px;
+      gap: 4px;
       cursor: pointer;
       font-size: 11px;
       font-weight: 700;
       color: #cbd5e1;
+      flex-shrink: 0;
     }
 
     .anim-card.active {
-      border-color: var(--accent-purple);
-      background: rgba(139, 92, 246, 0.2);
+      border-color: var(--cyan);
+      background: rgba(0, 210, 235, 0.18);
       color: #fff;
     }
 
@@ -438,13 +539,13 @@
     }
 
     .control-val {
-      color: var(--accent);
+      color: var(--cyan);
       font-family: monospace;
     }
 
     input[type="range"] {
       width: 100%;
-      accent-color: var(--accent);
+      accent-color: var(--cyan);
     }
 
     .preset-grid {
@@ -465,47 +566,85 @@
     }
 
     .btn-preset.active {
-      border-color: var(--accent);
-      background: rgba(0, 229, 255, 0.16);
+      border-color: var(--cyan);
+      background: rgba(0, 210, 235, 0.16);
       color: #fff;
     }
 
-    /* Screenshot 2: CapCut / TikTok Bottom Icon Dock */
+    .speed-pills {
+      display: flex;
+      gap: 6px;
+      justify-content: space-between;
+    }
+
+    .speed-pill {
+      flex: 1;
+      padding: 9px 4px;
+      border-radius: 8px;
+      background: #121217;
+      border: 1.5px solid #2d2d3a;
+      color: #cbd5e1;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .speed-pill.active {
+      border-color: var(--cyan);
+      background: rgba(0, 210, 235, 0.18);
+      color: #fff;
+    }
+
+    /* Bottom Dock matching Screenshot: [<<] [Split] [Volume] [Animations] [Effects] [Delete] [Speed] */
     .bottom-dock {
       height: 64px;
       background: var(--bg-black);
-      border-top: 1px solid #1f1f28;
+      border-top: 1px solid #1c1c24;
       display: flex;
       align-items: center;
-      justify-content: space-around;
-      padding: 0 6px;
+      justify-content: space-between;
+      padding: 0 8px;
+      flex-shrink: 0;
+    }
+
+    .btn-dock-back {
+      width: 34px;
+      height: 48px;
+      border-radius: 8px;
+      background: #1c1c22;
+      border: none;
+      color: #a1a1aa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
       flex-shrink: 0;
     }
 
     .dock-item {
       background: none;
       border: none;
-      color: #d1d5db;
+      color: #d4d4d8;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       gap: 4px;
-      font-size: 11px;
+      font-size: 10.5px;
       font-weight: 600;
       cursor: pointer;
-      padding: 6px 8px;
-      border-radius: 8px;
+      padding: 4px 6px;
     }
 
     .dock-item svg {
-      width: 22px;
-      height: 22px;
+      width: 21px;
+      height: 21px;
       stroke: currentColor;
     }
 
     .dock-item:active, .dock-item.active {
-      color: var(--accent);
+      color: var(--cyan);
     }
 
     .dock-item.delete-btn:active {
@@ -513,7 +652,7 @@
     }
 
     .dock-item:disabled {
-      opacity: 0.35;
+      opacity: 0.32;
     }
 
     /* Export Progress Modal Overlay */
@@ -521,8 +660,8 @@
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.82);
-      z-index: 50;
+      background: rgba(0, 0, 0, 0.84);
+      z-index: 60;
       align-items: center;
       justify-content: center;
       padding: 24px;
@@ -553,7 +692,7 @@
     .progress-fill {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, var(--accent), var(--accent-purple));
+      background: linear-gradient(90deg, var(--cyan), var(--purple));
       transition: width 0.15s ease;
     }
   </style>
@@ -562,101 +701,146 @@
 
   <input type="file" id="fallbackFileInput" accept="video/*" style="display:none" />
 
-  <!-- Screenshot 1: Top Toolbar with Mirror (<->), Rotate (90°), Title & Export -->
+  <!-- Top Bar matching Screenshot: [X] [Mirror] [Rotate] ... [AI UHD v] [Export] -->
   <div class="top-bar">
-    <div class="top-tools">
-      <!-- Mirror / Flip Horizontal Icon (Screenshot 1) -->
-      <button class="icon-btn" id="btnTopMirror" type="button" title="Mirror / Flip Part">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+    <div class="top-left">
+      <button class="top-icon-btn" type="button" onclick="triggerSelectVideo()" title="New Video">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+
+      <!-- Mirror Horizontal Flip -->
+      <button class="top-icon-btn" id="btnTopMirror" type="button" title="Mirror Part">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
           <path d="M11 6L4 18h7V6zm2 0v12h7L13 6zM8 3l-3 3 3 3V7h8v2l3-3-3-3v2H8V3z"/>
         </svg>
       </button>
 
-      <!-- Rotate 90° Icon (Screenshot 1) -->
-      <button class="icon-btn" id="btnTopRotate" type="button" title="Rotate Part 90°">
-        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Rotate 90° -->
+      <button class="top-icon-btn" id="btnTopRotate" type="button" title="Rotate 90°">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="4" y="8" width="12" height="12" rx="2" fill="currentColor" fill-opacity="0.25"/>
-          <path d="M14 4h4a2 2 0 0 1 2 2v4"/>
-          <path d="M17 2l-3 2 3 2"/>
+          <path d="M14 4h4a2 2 0 0 1 2 2v4"/><path d="M17 2l-3 2 3 2"/>
         </svg>
       </button>
     </div>
 
-    <div class="app-brand">TABI EDIT <span>v1.2.0</span></div>
-
-    <button class="btn-top-export" id="btnExport" type="button" disabled>Export</button>
+    <div class="top-right">
+      <button class="btn-ai-uhd" id="btnAiUhdToggle" type="button" onclick="toggleDrawer('drawerQuality', document.getElementById('btnDockQuality'))">
+        <span id="aiUhdLabel">AI UHD</span>
+        <span style="font-size:10px;">▾</span>
+      </button>
+      <button class="btn-export-cyan" id="btnExport" type="button" disabled>Export</button>
+    </div>
   </div>
 
-  <!-- Center Video Preview Stage -->
+  <!-- Center Video Preview Stage with Cyan Selection Border -->
   <div class="preview-stage">
     <div class="empty-import-box" id="dropPrompt" onclick="triggerSelectVideo()">
-      <div style="font-size:36px;margin-bottom:8px;">🎬</div>
-      <h3 style="font-size:16px;margin-bottom:6px;">Tap to Import Video</h3>
-      <p style="font-size:12px;color:var(--text-muted);">Split Parts • Per-Part Fade-In Timer • Rotate & Mirror • CapCut Quality</p>
+      <div style="font-size:34px;margin-bottom:8px;">🎬</div>
+      <h3 style="font-size:15px;margin-bottom:5px;">Tap to Select Video</h3>
+      <p style="font-size:11.5px;color:#9ca3af;">TABI EDIT v1.3.0 • CapCut Filmstrip Cut, Trim Handles & Per-Part Fade-In</p>
     </div>
 
-    <div class="video-viewport" id="videoViewport">
-      <div class="preset-pill-overlay" id="presetBadge">🔥 CapCut Default 1</div>
+    <div class="video-frame-cyan" id="videoFrameCyan">
       <video id="previewVideo" playsinline webkit-playsinline></video>
       <div id="fadeBlackOverlay"></div>
     </div>
   </div>
 
-  <!-- Playback Controls & Timecode -->
-  <div class="playback-bar">
-    <button class="play-btn" id="btnPlayPause" type="button">▶ Play</button>
-    <div class="time-readout" id="timeLabel"><b>00:00.0</b> / 00:00.0</div>
-    <div style="font-size:11px;color:var(--accent);font-weight:700;" id="partStatusLabel">Part 1 Selected</div>
-  </div>
-
-  <!-- Screenshot 2: CapCut / TikTok Timeline Area (Filmstrip + Add Audio) -->
-  <div class="timeline-area">
-    <div class="scrubber-row">
-      <input type="range" class="timeline-scrubber" id="scrubberRange" min="0" max="100" step="0.05" value="0" />
-    </div>
-
-    <!-- Filmstrip Clip Parts + [+] Button -->
-    <div class="filmstrip-row" id="filmstripRow">
-      <div class="clip-block selected" onclick="triggerSelectVideo()">
-        <div class="clip-top-row"><span class="clip-title">Import Video</span></div>
-        <div class="clip-time">0.0s - 0.0s</div>
-      </div>
-      <button class="btn-add-clip" type="button" onclick="triggerSelectVideo()">+</button>
-    </div>
-
-    <!-- "+ Add audio" Voice Overlay Track -->
-    <div class="audio-track-bar" id="audioTrackBar">
-      <span>+ Add audio (Tap to Record Voice Overlay)</span>
-      <span id="voiceTrackTag">🎙️ Mic</span>
-    </div>
-  </div>
-
-  <!-- Pop-up Drawers for Animations (Per-Part Fade-In Timer), Volume, and Quality -->
-
-  <!-- 1. ANIMATIONS DRAWER (Per-Part CapCut/TikTok Fade-In + Duration Timer) -->
-  <div class="tool-drawer" id="drawerAnimations">
-    <div class="drawer-header">
-      <span id="animDrawerTitle">🎬 IN ANIMATION — PART 1</span>
-      <button class="btn-close-drawer" type="button" onclick="closeAllDrawers()">✓ Done</button>
-    </div>
-
-    <div class="anim-cards-row">
-      <div class="anim-card active" id="cardAnimNone" onclick="setPartFadeIn(false)">
-        <span style="font-size:18px;">🚫</span>
-        <span>None</span>
-      </div>
-      <div class="anim-card" id="cardAnimFadeIn" onclick="setPartFadeIn(true)">
-        <span style="font-size:18px;">✨</span>
-        <span>Fade In</span>
-      </div>
-      <button class="btn-preset" type="button" style="flex:1;height:74px;" onclick="applyFadeInToAllParts()">
-        ✨ Apply Fade-In to All Cut Parts
+  <!-- Middle Control Row: [Fullscreen]  [Play Triangle]  [Diamond+  Undo  Redo] -->
+  <div class="mid-controls">
+    <div class="mid-left">
+      <button class="mid-icon-btn" id="btnFitToggle" type="button" title="Toggle Fit">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+          <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
       </button>
     </div>
 
+    <button class="btn-play-center" id="btnPlayPause" type="button">
+      <svg id="playSvgIcon" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+        <polygon points="6 4 20 12 6 20 6 4"/>
+      </svg>
+    </button>
+
+    <div class="mid-right">
+      <!-- Quick Per-Part Fade-In Diamond Button -->
+      <button class="mid-icon-btn" id="btnQuickFade" type="button" onclick="toggleDrawer('drawerAnimations', document.getElementById('btnDockAnimations'))" title="Part Fade-In">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 3 21 12 12 21 3 12 12 3"/>
+        </svg>
+      </button>
+      <!-- Undo -->
+      <button class="mid-icon-btn" id="btnUndo" type="button" disabled title="Undo">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>
+        </svg>
+      </button>
+      <!-- Redo -->
+      <button class="mid-icon-btn" id="btnRedo" type="button" disabled title="Redo">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M15 14l5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- CapCut Timeline Workspace: Timecode + Fixed Center White Vertical Line + Scrollable Real-Frame Filmstrip -->
+  <div class="timeline-workspace">
+    <div class="timecode-floating" id="timecodeFloating">00:00 <span>/ 00:00</span></div>
+
+    <!-- Long Fixed White Vertical Playhead Line in Center -->
+    <div class="center-playhead-line"></div>
+
+    <!-- Scrollable Timeline Track -->
+    <div class="timeline-scroll" id="timelineScroll">
+      <div class="timeline-inner" id="timelineInner">
+        <!-- Time Ruler Ticks (00:00  •  00:02  •  00:04...) -->
+        <div class="ruler-row" id="rulerRow"></div>
+
+        <!-- Filmstrip Clips with White Trim Handles + [+] Button -->
+        <div class="clips-track-row" id="clipsTrackRow">
+          <div class="capcut-clip selected" style="width:180px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;" onclick="triggerSelectVideo()">
+            Tap + to Load Video
+          </div>
+          <button class="btn-plus-white" type="button" onclick="triggerSelectVideo()">+</button>
+        </div>
+
+        <!-- Voice Overlay Track Under Filmstrip -->
+        <div class="voice-subtrack" id="voiceSubtrack">
+          <span>+ Add audio (Voice Overlay)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pop-up Drawers -->
+
+  <!-- 1. ANIMATIONS DRAWER (Per-Part Fade-In + Timer) -->
+  <div class="tool-drawer" id="drawerAnimations">
+    <div class="drawer-header">
+      <span id="animDrawerTitle">🎬 FADE-IN ANIMATION — PART 1</span>
+      <button class="btn-done" type="button" onclick="closeAllDrawers()">✓</button>
+    </div>
+    <div class="anim-cards-row">
+      <div class="anim-card active" id="cardAnimNone" onclick="setPartFadeIn(false)">
+        <span style="font-size:17px;">🚫</span>
+        <span>None</span>
+      </div>
+      <div class="anim-card" id="cardAnimFadeIn" onclick="setPartFadeIn(true)">
+        <span style="font-size:17px;">✨</span>
+        <span>Fade In</span>
+      </div>
+      <button class="btn-preset" type="button" style="flex:1;height:70px;" onclick="applyFadeInToAllParts()">
+        ✨ Apply Fade-In to All Cut Parts
+      </button>
+    </div>
     <div class="control-row">
       <div class="control-label">
-        <span>⏱️ Fade-In Timer (Duration for Selected Part)</span>
+        <span>⏱️ Fade-In Duration Timer</span>
         <span class="control-val" id="val_partFadeDur">0.8s</span>
       </div>
       <input type="range" id="partFadeDurSlider" min="0.2" max="3.0" step="0.1" value="0.8" />
@@ -667,7 +851,7 @@
   <div class="tool-drawer" id="drawerVolume">
     <div class="drawer-header">
       <span>🔊 VOLUME & VOICE OVERLAY</span>
-      <button class="btn-close-drawer" type="button" onclick="closeAllDrawers()">✓ Done</button>
+      <button class="btn-done" type="button" onclick="closeAllDrawers()">✓</button>
     </div>
     <button class="btn-preset" id="btnRecordVoice" type="button">🎙️ Record Mic Voiceover</button>
     <div class="control-row">
@@ -680,17 +864,32 @@
     </div>
   </div>
 
-  <!-- 3. CAPCUT QUALITY PRESETS (1 & 2) & HSL ADJUST DRAWER -->
+  <!-- 3. SPEED DRAWER (Per-Part Speed 0.5x to 2.0x) -->
+  <div class="tool-drawer" id="drawerSpeed">
+    <div class="drawer-header">
+      <span id="speedDrawerTitle">⏱️ CLIP SPEED — PART 1</span>
+      <button class="btn-done" type="button" onclick="closeAllDrawers()">✓</button>
+    </div>
+    <div class="speed-pills" id="speedPillsRow">
+      <div class="speed-pill" onclick="setPartSpeed(0.5)">0.5x</div>
+      <div class="speed-pill" onclick="setPartSpeed(0.75)">0.75x</div>
+      <div class="speed-pill active" onclick="setPartSpeed(1.0)">1.0x</div>
+      <div class="speed-pill" onclick="setPartSpeed(1.25)">1.25x</div>
+      <div class="speed-pill" onclick="setPartSpeed(1.5)">1.5x</div>
+      <div class="speed-pill" onclick="setPartSpeed(2.0)">2.0x</div>
+    </div>
+  </div>
+
+  <!-- 4. EFFECTS / CAPCUT QUALITY PRESETS DRAWER -->
   <div class="tool-drawer" id="drawerQuality">
     <div class="drawer-header">
-      <span>⭐ CAPCUT QUALITY PRESETS & HSL</span>
-      <button class="btn-close-drawer" type="button" onclick="closeAllDrawers()">✓ Done</button>
+      <span>⭐ AI UHD — CAPCUT QUALITY PRESETS & HSL</span>
+      <button class="btn-done" type="button" onclick="closeAllDrawers()">✓</button>
     </div>
     <div class="preset-grid">
       <button class="btn-preset active" id="btnPreset1" type="button">🔥 CapCut Default 1<br><small>B:-23 C:-31 S:+39 Sh:98</small></button>
       <button class="btn-preset" id="btnPreset2" type="button">✨ CapCut Default 2<br><small>B:-5 C:-20 S:+20 Sh:59</small></button>
     </div>
-
     <div class="control-row">
       <div class="control-label"><span>Brightness</span><span class="control-val" id="val_brightness">-23</span></div>
       <input type="range" id="brightness" min="-50" max="50" value="-23" />
@@ -733,9 +932,14 @@
     </div>
   </div>
 
-  <!-- Screenshot 2: Bottom Action Dock (Split, Volume, Animations, Quality/Effects, Delete, Rotate) -->
+  <!-- Bottom Action Dock matching Screenshot: [<<] [Split] [Volume] [Animations] [Effects] [Delete] [Speed] -->
   <div class="bottom-dock">
-    <!-- Split Icon ][ -->
+    <button class="btn-dock-back" type="button" onclick="closeAllDrawers()">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/>
+      </svg>
+    </button>
+
     <button class="dock-item" id="btnDockSplit" type="button">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
         <path d="M6 4h3v16H6M18 4h-3v16h3"/>
@@ -743,7 +947,6 @@
       <span>Split</span>
     </button>
 
-    <!-- Volume Icon -->
     <button class="dock-item" id="btnDockVolume" type="button" onclick="toggleDrawer('drawerVolume', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
@@ -752,7 +955,6 @@
       <span>Volume</span>
     </button>
 
-    <!-- Animations Icon (Per-Part Fade In + Timer) -->
     <button class="dock-item" id="btnDockAnimations" type="button" onclick="toggleDrawer('drawerAnimations', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linejoin="round">
         <rect x="3" y="4" width="18" height="16" rx="2"/>
@@ -761,15 +963,13 @@
       <span>Animations</span>
     </button>
 
-    <!-- Effects / Quality Presets -->
     <button class="dock-item" id="btnDockQuality" type="button" onclick="toggleDrawer('drawerQuality', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linejoin="round">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
       </svg>
-      <span>Quality</span>
+      <span>Effects</span>
     </button>
 
-    <!-- Delete Icon -->
     <button class="dock-item delete-btn" id="btnDockDelete" type="button" disabled>
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
         <polyline points="3 6 5 6 21 6"/>
@@ -778,13 +978,11 @@
       <span>Delete</span>
     </button>
 
-    <!-- Rotate Icon -->
-    <button class="dock-item" id="btnDockRotate" type="button">
+    <button class="dock-item" id="btnDockSpeed" type="button" onclick="toggleDrawer('drawerSpeed', this)">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round">
-        <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/>
-        <polyline points="21 3 21 8 16 8"/>
+        <path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 12l5-5"/><circle cx="12" cy="12" r="2"/>
       </svg>
-      <span>Rotate</span>
+      <span>Speed</span>
     </button>
   </div>
 
@@ -792,25 +990,29 @@
   <div class="export-overlay" id="exportOverlay">
     <div class="export-card">
       <h3 style="font-size:16px;" id="exportTitle">Exporting TABI EDIT HD...</h3>
-      <p style="font-size:12px;color:var(--text-muted);" id="exportStatusText">Applying Split Cuts, Per-Part Fade-In & CapCut Quality...</p>
+      <p style="font-size:12px;color:#9ca3af;" id="exportStatusText">Applying Filmstrip Cuts, Fade-In & AI UHD Quality...</p>
       <div class="progress-track"><div class="progress-fill" id="exportFill"></div></div>
-      <div style="font-size:14px;font-weight:800;color:var(--accent);" id="exportPctText">0%</div>
+      <div style="font-size:14px;font-weight:800;color:var(--cyan);" id="exportPctText">0%</div>
     </div>
   </div>
 
   <script>
+    const PX_PER_SEC = 52; // 52 pixels per second on CapCut scrollable filmstrip
     const PRESET_1 = { brightness: -23, contrast: -31, saturation: 39, brilliance: -9, sharpness: 98, hslRed: 63, hslBlue: 15, hslDarkBlue: 64, hslPurple: 60, hslPink: 60 };
     const PRESET_2 = { brightness: -5, contrast: -20, saturation: 20, brilliance: -20, sharpness: 59, hslRed: 47, hslBlue: 5, hslDarkBlue: 43, hslPurple: 32, hslPink: 43 };
     const colorIds = ['brightness', 'contrast', 'saturation', 'brilliance', 'sharpness', 'hslRed', 'hslBlue', 'hslDarkBlue', 'hslPurple', 'hslPink'];
 
     const video = document.getElementById('previewVideo');
     const fadeBlackOverlay = document.getElementById('fadeBlackOverlay');
-    const scrubberRange = document.getElementById('scrubberRange');
+    const timelineScroll = document.getElementById('timelineScroll');
 
     let totalVideoDuration = 0;
-    // Each segment/part holds its own independent fadeIn, fadeInDuration, rotate (0,90,180,270), and mirror (bool)!
     let segments = [];
     let selectedSegIdx = 0;
+    let undoStack = [];
+    let redoStack = [];
+    let filmstripThumbDataUrl = '';
+    let isAutoScrolling = false;
 
     function hasNativeBridge() {
       return Boolean(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tabiNative);
@@ -824,38 +1026,92 @@
       }
     }
 
-    function formatTime(sec) {
+    function pushUndoState() {
+      undoStack.push(JSON.stringify(segments));
+      if (undoStack.length > 25) undoStack.shift();
+      redoStack = [];
+      updateUndoRedoButtons();
+    }
+
+    function updateUndoRedoButtons() {
+      document.getElementById('btnUndo').disabled = undoStack.length === 0;
+      document.getElementById('btnRedo').disabled = redoStack.length === 0;
+    }
+
+    document.getElementById('btnUndo').onclick = () => {
+      if (undoStack.length === 0) return;
+      redoStack.push(JSON.stringify(segments));
+      segments = JSON.parse(undoStack.pop());
+      selectedSegIdx = Math.min(selectedSegIdx, segments.length - 1);
+      updateUndoRedoButtons();
+      renderTimeline();
+      updateLivePreview();
+    };
+
+    document.getElementById('btnRedo').onclick = () => {
+      if (redoStack.length === 0) return;
+      undoStack.push(JSON.stringify(segments));
+      segments = JSON.parse(redoStack.pop());
+      selectedSegIdx = Math.min(selectedSegIdx, segments.length - 1);
+      updateUndoRedoButtons();
+      renderTimeline();
+      updateLivePreview();
+    };
+
+    function fmtMMSS(sec) {
       const m = Math.floor(sec / 60);
-      const s = (sec % 60).toFixed(1);
+      const s = Math.floor(sec % 60);
       return `${m < 10 ? '0' + m : m}:${s < 10 ? '0' + s : s}`;
+    }
+
+    // Generate Filmstrip Thumbnail Tile from the Loaded Video
+    function captureFilmstripThumbnail() {
+      const thumbVideo = document.createElement('video');
+      thumbVideo.src = video.src;
+      thumbVideo.muted = true;
+      thumbVideo.playsInline = true;
+      thumbVideo.currentTime = Math.min(1.0, totalVideoDuration * 0.2);
+      thumbVideo.onseeked = () => {
+        try {
+          const c = document.createElement('canvas');
+          c.width = 76;
+          c.height = 54;
+          const cx = c.getContext('2d');
+          cx.drawImage(thumbVideo, 0, 0, c.width, c.height);
+          filmstripThumbDataUrl = c.toDataURL('image/jpeg', 0.7);
+          renderTimeline();
+        } catch (e) {}
+      };
     }
 
     window.onNativeVideoSelected = function(fileUrl, durationSec) {
       totalVideoDuration = Math.max(0.5, parseFloat(durationSec) || 10.0);
-      scrubberRange.max = totalVideoDuration;
-      scrubberRange.value = 0;
-
       segments = [{
         start: 0,
         end: totalVideoDuration,
         fadeIn: false,
         fadeInDuration: 0.8,
         rotate: 0,
-        mirror: false
+        mirror: false,
+        speed: 1.0
       }];
       selectedSegIdx = 0;
+      undoStack = [];
+      redoStack = [];
+      updateUndoRedoButtons();
 
       video.src = fileUrl;
       video.load();
       video.currentTime = 0.01;
 
       document.getElementById('dropPrompt').style.display = 'none';
-      document.getElementById('videoViewport').style.display = 'flex';
+      document.getElementById('videoFrameCyan').style.display = 'flex';
       document.getElementById('btnExport').disabled = false;
 
-      renderFilmstrip();
-      syncAnimDrawerToSelectedPart();
+      renderTimeline();
+      syncDrawers();
       updateLivePreview();
+      setTimeout(captureFilmstripThumbnail, 300);
     };
 
     document.getElementById('fallbackFileInput').onchange = (e) => {
@@ -867,67 +1123,247 @@
       };
     };
 
-    // Render CapCut / TikTok Filmstrip Timeline Blocks
-    function renderFilmstrip() {
-      const row = document.getElementById('filmstripRow');
-      row.innerHTML = '';
-
-      segments.forEach((seg, idx) => {
-        const block = document.createElement('div');
-        block.className = 'clip-block' + (idx === selectedSegIdx ? ' selected' : '');
-
-        const top = document.createElement('div');
-        top.className = 'clip-top-row';
-        top.innerHTML = `<span class="clip-title">Part ${idx + 1}</span>`;
-
-        const badges = document.createElement('div');
-        badges.className = 'clip-badges';
-        if (seg.fadeIn) {
-          badges.innerHTML += `<span class="badge-fade">✨ Fade ${seg.fadeInDuration.toFixed(1)}s</span>`;
-        }
-        if (seg.rotate || seg.mirror) {
-          const rTxt = seg.rotate ? `${seg.rotate}°` : '';
-          const mTxt = seg.mirror ? '⇄' : '';
-          badges.innerHTML += `<span class="badge-rot">${rTxt}${mTxt}</span>`;
-        }
-        top.appendChild(badges);
-
-        const timeDiv = document.createElement('div');
-        timeDiv.className = 'clip-time';
-        timeDiv.textContent = `${seg.start.toFixed(1)}s - ${seg.end.toFixed(1)}s (${(seg.end - seg.start).toFixed(1)}s)`;
-
-        block.appendChild(top);
-        block.appendChild(timeDiv);
-
-        block.onclick = () => {
-          selectedSegIdx = idx;
-          video.currentTime = seg.start + 0.01;
-          scrubberRange.value = seg.start;
-          renderFilmstrip();
-          syncAnimDrawerToSelectedPart();
-          updateLivePreview();
-        };
-
-        row.appendChild(block);
-      });
-
-      const addBtn = document.createElement('button');
-      addBtn.className = 'btn-add-clip';
-      addBtn.type = 'button';
-      addBtn.textContent = '+';
-      addBtn.onclick = triggerSelectVideo;
-      row.appendChild(addBtn);
-
-      document.getElementById('btnDockDelete').disabled = segments.length <= 1;
-      document.getElementById('partStatusLabel').textContent = `Part ${selectedSegIdx + 1} Selected`;
+    // Compute total composition duration across kept segments
+    function getTotalCompDuration() {
+      return segments.reduce((acc, s) => acc + Math.max(0.1, (s.end - s.start) / (s.speed || 1.0)), 0);
     }
 
-    // Drawer Management
+    // Convert Composition Timeline Time (under center white line) -> Source Video Time & Segment Index
+    function compTimeToSource(compSec) {
+      let acc = 0;
+      for (let i = 0; i < segments.length; i++) {
+        const s = segments[i];
+        const segDur = Math.max(0.1, (s.end - s.start) / (s.speed || 1.0));
+        if (compSec <= acc + segDur + 0.02 || i === segments.length - 1) {
+          const offsetInComp = Math.max(0, Math.min(segDur, compSec - acc));
+          const srcTime = s.start + offsetInComp * (s.speed || 1.0);
+          return { segIdx: i, srcTime: srcTime, elapsedInPart: offsetInComp };
+        }
+        acc += segDur;
+      }
+      return { segIdx: 0, srcTime: 0, elapsedInPart: 0 };
+    }
+
+    // Convert current Source Video Time -> Composition Timeline Time
+    function sourceTimeToComp(srcSec, hintIdx) {
+      let acc = 0;
+      for (let i = 0; i < segments.length; i++) {
+        const s = segments[i];
+        const segDur = Math.max(0.1, (s.end - s.start) / (s.speed || 1.0));
+        if (i === hintIdx || (srcSec >= s.start - 0.05 && srcSec <= s.end + 0.05)) {
+          const offset = Math.max(0, Math.min(segDur, (srcSec - s.start) / (s.speed || 1.0)));
+          return acc + offset;
+        }
+        acc += segDur;
+      }
+      return 0;
+    }
+
+    // Render CapCut Ruler + Scrollable Filmstrip Clips + Draggable White Trim Handles
+    function renderTimeline() {
+      const rulerRow = document.getElementById('rulerRow');
+      const clipsRow = document.getElementById('clipsTrackRow');
+      rulerRow.innerHTML = '';
+      clipsRow.innerHTML = '';
+
+      const totalComp = Math.max(2, getTotalCompDuration());
+      const totalPx = Math.round(totalComp * PX_PER_SEC);
+      rulerRow.style.width = totalPx + 'px';
+
+      // Draw Ruler Ticks every 2 seconds (00:00  •  00:02  •  00:04...)
+      for (let s = 0; s <= Math.ceil(totalComp); s++) {
+        const x = Math.round(s * PX_PER_SEC);
+        if (s % 2 === 0) {
+          const tick = document.createElement('div');
+          tick.className = 'ruler-tick';
+          tick.style.left = x + 'px';
+          tick.textContent = fmtMMSS(s);
+          rulerRow.appendChild(tick);
+        } else {
+          const dot = document.createElement('div');
+          dot.className = 'ruler-dot';
+          dot.style.left = x + 'px';
+          dot.textContent = '•';
+          rulerRow.appendChild(dot);
+        }
+      }
+
+      // Draw Filmstrip Clip Blocks
+      let accComp = 0;
+      segments.forEach((seg, idx) => {
+        const segCompDur = Math.max(0.2, (seg.end - seg.start) / (seg.speed || 1.0));
+        const widthPx = Math.max(46, Math.round(segCompDur * PX_PER_SEC));
+        const clipStartComp = accComp;
+        accComp += segCompDur;
+
+        const clipEl = document.createElement('div');
+        clipEl.className = 'capcut-clip' + (idx === selectedSegIdx ? ' selected' : '');
+        clipEl.style.width = widthPx + 'px';
+        if (filmstripThumbDataUrl) {
+          clipEl.style.backgroundImage = `url(${filmstripThumbDataUrl})`;
+        }
+
+        // Duration Badge (e.g., "1.9s")
+        const durTag = document.createElement('div');
+        durTag.className = 'clip-dur-tag';
+        durTag.textContent = `${segCompDur.toFixed(1)}s` + (seg.speed && seg.speed !== 1 ? ` • ${seg.speed}x` : '');
+        clipEl.appendChild(durTag);
+
+        // Fade-In Visual Ramp Overlay inside clip
+        if (seg.fadeIn) {
+          const fadeBar = document.createElement('div');
+          fadeBar.className = 'clip-fade-bar';
+          const fadeW = Math.min(widthPx - 20, Math.round((seg.fadeInDuration || 0.8) * PX_PER_SEC));
+          fadeBar.style.width = Math.max(28, fadeW) + 'px';
+          fadeBar.innerHTML = `<span class="clip-fade-text">✨ Fade ${seg.fadeInDuration.toFixed(1)}s</span>`;
+          clipEl.appendChild(fadeBar);
+        }
+
+        // Left & Right White CapCut Trim Handles ([ | and | ])
+        const leftHandle = document.createElement('div');
+        leftHandle.className = 'trim-handle left';
+        leftHandle.innerHTML = '<div class="trim-grip"></div>';
+        attachTrimDrag(leftHandle, idx, 'left');
+
+        const rightHandle = document.createElement('div');
+        rightHandle.className = 'trim-handle right';
+        rightHandle.innerHTML = '<div class="trim-grip"></div>';
+        attachTrimDrag(rightHandle, idx, 'right');
+
+        clipEl.appendChild(leftHandle);
+        clipEl.appendChild(rightHandle);
+
+        clipEl.onclick = (e) => {
+          e.stopPropagation();
+          selectedSegIdx = idx;
+          renderTimeline();
+          syncDrawers();
+        };
+
+        clipsRow.appendChild(clipEl);
+      });
+
+      const plusBtn = document.createElement('button');
+      plusBtn.className = 'btn-plus-white';
+      plusBtn.type = 'button';
+      plusBtn.textContent = '+';
+      plusBtn.onclick = triggerSelectVideo;
+      clipsRow.appendChild(plusBtn);
+
+      document.getElementById('btnDockDelete').disabled = segments.length <= 1;
+      document.getElementById('btnQuickFade').classList.toggle('active', Boolean(segments[selectedSegIdx] && segments[selectedSegIdx].fadeIn));
+    }
+
+    // Touch / Mouse Drag on White Trim Handles ([ | and | ]) to Trim Clip Start/End!
+    function attachTrimDrag(handleEl, segIdx, side) {
+      let startX = 0;
+      let origStart = 0;
+      let origEnd = 0;
+
+      const onStart = (clientX, e) => {
+        e.stopPropagation();
+        pushUndoState();
+        startX = clientX;
+        origStart = segments[segIdx].start;
+        origEnd = segments[segIdx].end;
+      };
+
+      const onMove = (clientX) => {
+        const dx = clientX - startX;
+        const dSec = dx / PX_PER_SEC;
+        const seg = segments[segIdx];
+        if (!seg) return;
+        if (side === 'left') {
+          seg.start = Math.max(0, Math.min(origEnd - 0.3, origStart + dSec));
+          video.currentTime = seg.start;
+        } else {
+          seg.end = Math.min(totalVideoDuration, Math.max(origStart + 0.3, origEnd + dSec));
+          video.currentTime = seg.end;
+        }
+        renderTimeline();
+      };
+
+      handleEl.addEventListener('touchstart', (e) => onStart(e.touches[0].clientX, e), { passive: false });
+      handleEl.addEventListener('touchmove', (e) => { e.preventDefault(); e.stopPropagation(); onMove(e.touches[0].clientX); }, { passive: false });
+    }
+
+    // When User Scrolls the Filmstrip with Finger -> Scrub Video Under Center White Playhead Line!
+    timelineScroll.addEventListener('scroll', () => {
+      if (isAutoScrolling || segments.length === 0) return;
+      if (!video.paused) video.pause();
+      const compSec = Math.max(0, timelineScroll.scrollLeft / PX_PER_SEC);
+      const totalComp = getTotalCompDuration();
+      document.getElementById('timecodeFloating').innerHTML = `${fmtMMSS(Math.min(compSec, totalComp))} <span>/ ${fmtMMSS(totalComp)}</span>`;
+
+      const mapped = compTimeToSource(compSec);
+      if (mapped.segIdx !== selectedSegIdx) {
+        selectedSegIdx = mapped.segIdx;
+        renderTimeline();
+        syncDrawers();
+      }
+      video.currentTime = mapped.srcTime;
+      updateLivePreview(mapped.elapsedInPart);
+    });
+
+    // SPLIT Clip Right at the Center White Vertical Playhead Line!
+    document.getElementById('btnDockSplit').onclick = () => {
+      if (segments.length === 0) return;
+      const compSec = Math.max(0, timelineScroll.scrollLeft / PX_PER_SEC);
+      const mapped = compTimeToSource(compSec);
+      const cur = segments[mapped.segIdx];
+      if (!cur || mapped.srcTime <= cur.start + 0.2 || mapped.srcTime >= cur.end - 0.2) {
+        return;
+      }
+      pushUndoState();
+      const leftClip = { ...cur, end: mapped.srcTime };
+      const rightClip = {
+        ...cur,
+        start: mapped.srcTime,
+        fadeIn: false
+      };
+      segments.splice(mapped.segIdx, 1, leftClip, rightClip);
+      selectedSegIdx = mapped.segIdx + 1; // Select newly cut right clip
+      renderTimeline();
+      syncDrawers();
+    };
+
+    // DELETE Selected Clip
+    document.getElementById('btnDockDelete').onclick = () => {
+      if (segments.length <= 1) return;
+      pushUndoState();
+      segments.splice(selectedSegIdx, 1);
+      selectedSegIdx = Math.max(0, selectedSegIdx - 1);
+      renderTimeline();
+      syncDrawers();
+      const compSec = sourceTimeToComp(segments[selectedSegIdx].start, selectedSegIdx);
+      timelineScroll.scrollLeft = compSec * PX_PER_SEC;
+      video.currentTime = segments[selectedSegIdx].start;
+    };
+
+    // Rotate & Mirror Top Buttons
+    document.getElementById('btnTopRotate').onclick = () => {
+      const seg = segments[selectedSegIdx];
+      if (!seg) return;
+      pushUndoState();
+      seg.rotate = ((seg.rotate || 0) + 90) % 360;
+      updateLivePreview();
+    };
+
+    document.getElementById('btnTopMirror').onclick = () => {
+      const seg = segments[selectedSegIdx];
+      if (!seg) return;
+      pushUndoState();
+      seg.mirror = !seg.mirror;
+      document.getElementById('btnTopMirror').classList.toggle('active', seg.mirror);
+      updateLivePreview();
+    };
+
+    // Drawers
     function closeAllDrawers() {
-      ['drawerAnimations', 'drawerVolume', 'drawerQuality'].forEach(id => {
+      ['drawerAnimations', 'drawerVolume', 'drawerQuality', 'drawerSpeed'].forEach(id => {
         document.getElementById(id).classList.remove('open');
       });
-      ['btnDockAnimations', 'btnDockVolume', 'btnDockQuality'].forEach(id => {
+      ['btnDockAnimations', 'btnDockVolume', 'btnDockQuality', 'btnDockSpeed'].forEach(id => {
         document.getElementById(id).classList.remove('active');
       });
     }
@@ -939,124 +1375,69 @@
       if (!isOpen) {
         dr.classList.add('open');
         if (btnEl) btnEl.classList.add('active');
-        if (drawerId === 'drawerAnimations') syncAnimDrawerToSelectedPart();
+        syncDrawers();
       }
     }
 
-    // Sync Animation Drawer UI to the currently selected Split Part
-    function syncAnimDrawerToSelectedPart() {
+    function syncDrawers() {
       const seg = segments[selectedSegIdx];
       if (!seg) return;
-      document.getElementById('animDrawerTitle').textContent = `🎬 IN ANIMATION — PART ${selectedSegIdx + 1}`;
+      document.getElementById('animDrawerTitle').textContent = `🎬 FADE-IN ANIMATION — PART ${selectedSegIdx + 1}`;
       document.getElementById('cardAnimNone').classList.toggle('active', !seg.fadeIn);
       document.getElementById('cardAnimFadeIn').classList.toggle('active', Boolean(seg.fadeIn));
       document.getElementById('partFadeDurSlider').value = seg.fadeInDuration || 0.8;
       document.getElementById('val_partFadeDur').textContent = (seg.fadeInDuration || 0.8).toFixed(1) + 's';
+
+      document.getElementById('speedDrawerTitle').textContent = `⏱️ CLIP SPEED — PART ${selectedSegIdx + 1}`;
+      const curSpd = seg.speed || 1.0;
+      document.querySelectorAll('#speedPillsRow .speed-pill').forEach(el => {
+        el.classList.toggle('active', parseFloat(el.textContent) === curSpd);
+      });
     }
 
     function setPartFadeIn(enabled) {
       const seg = segments[selectedSegIdx];
       if (!seg) return;
+      pushUndoState();
       seg.fadeIn = enabled;
-      // Seek to start of this part and play so user immediately sees the CapCut Fade-In on that cut!
+      syncDrawers();
+      renderTimeline();
       video.currentTime = seg.start + 0.01;
-      scrubberRange.value = seg.start;
       if (enabled && video.paused) video.play();
-      syncAnimDrawerToSelectedPart();
-      renderFilmstrip();
-      updateLivePreview();
     }
 
     function applyFadeInToAllParts() {
+      pushUndoState();
       const dur = parseFloat(document.getElementById('partFadeDurSlider').value) || 0.8;
-      segments.forEach(s => {
-        s.fadeIn = true;
-        s.fadeInDuration = dur;
-      });
-      syncAnimDrawerToSelectedPart();
-      renderFilmstrip();
-      updateLivePreview();
+      segments.forEach(s => { s.fadeIn = true; s.fadeInDuration = dur; });
+      syncDrawers();
+      renderTimeline();
     }
 
-    document.getElementById('partFadeDurSlider').addEventListener('input', (e) => {
+    document.getElementById('partFadeDurSlider').oninput = (e) => {
       const val = parseFloat(e.target.value);
       document.getElementById('val_partFadeDur').textContent = val.toFixed(1) + 's';
       const seg = segments[selectedSegIdx];
       if (seg) {
         seg.fadeIn = true;
         seg.fadeInDuration = val;
-        syncAnimDrawerToSelectedPart();
-        renderFilmstrip();
+        syncDrawers();
+        renderTimeline();
       }
-    });
+    };
 
-    // SPLIT at Playhead (Creates two independent parts; user can put Fade-In on any cut part!)
-    document.getElementById('btnDockSplit').addEventListener('click', () => {
-      if (segments.length === 0) return;
-      const t = parseFloat(scrubberRange.value);
-      const idx = segments.findIndex(s => t > s.start + 0.15 && t < s.end - 0.15);
-      if (idx === -1) {
-        document.getElementById('partStatusLabel').textContent = 'Move Playhead inside clip to Split!';
-        return;
-      }
-      const cur = segments[idx];
-      const leftPart = {
-        start: cur.start,
-        end: t,
-        fadeIn: cur.fadeIn,
-        fadeInDuration: cur.fadeInDuration,
-        rotate: cur.rotate,
-        mirror: cur.mirror
-      };
-      const rightPart = {
-        start: t,
-        end: cur.end,
-        fadeIn: false,
-        fadeInDuration: cur.fadeInDuration || 0.8,
-        rotate: cur.rotate,
-        mirror: cur.mirror
-      };
-      segments.splice(idx, 1, leftPart, rightPart);
-      selectedSegIdx = idx + 1; // Select the newly cut right part automatically (just like CapCut!)
-      renderFilmstrip();
-      syncAnimDrawerToSelectedPart();
-    });
-
-    // DELETE Selected Part
-    document.getElementById('btnDockDelete').addEventListener('click', () => {
-      if (segments.length <= 1) return;
-      segments.splice(selectedSegIdx, 1);
-      selectedSegIdx = Math.max(0, selectedSegIdx - 1);
-      video.currentTime = segments[selectedSegIdx].start;
-      scrubberRange.value = segments[selectedSegIdx].start;
-      renderFilmstrip();
-      syncAnimDrawerToSelectedPart();
-      updateLivePreview();
-    });
-
-    // ROTATE 90° (Top Bar & Bottom Dock)
-    function rotateSelectedPart() {
+    function setPartSpeed(spd) {
       const seg = segments[selectedSegIdx];
       if (!seg) return;
-      seg.rotate = ((seg.rotate || 0) + 90) % 360;
-      renderFilmstrip();
-      updateLivePreview();
+      pushUndoState();
+      seg.speed = spd;
+      video.playbackRate = spd;
+      syncDrawers();
+      renderTimeline();
     }
-    document.getElementById('btnTopRotate').addEventListener('click', rotateSelectedPart);
-    document.getElementById('btnDockRotate').addEventListener('click', rotateSelectedPart);
 
-    // MIRROR / FLIP HORIZONTAL (Top Bar)
-    document.getElementById('btnTopMirror').addEventListener('click', () => {
-      const seg = segments[selectedSegIdx];
-      if (!seg) return;
-      seg.mirror = !seg.mirror;
-      document.getElementById('btnTopMirror').classList.toggle('active', seg.mirror);
-      renderFilmstrip();
-      updateLivePreview();
-    });
-
-    // Live Preview Updater (Color Filter + Per-Part Black Fade-In + Per-Part Rotate/Mirror)
-    function updateLivePreview() {
+    // Live Preview Updater
+    function updateLivePreview(overrideElapsed) {
       const br = parseFloat(document.getElementById('brightness').value);
       const co = parseFloat(document.getElementById('contrast').value);
       const sa = parseFloat(document.getElementById('saturation').value);
@@ -1075,23 +1456,18 @@
       video.style.webkitFilter = `brightness(${bPct}%) contrast(${cPct}%) saturate(${satPct}%)`;
       video.style.filter = `brightness(${bPct}%) contrast(${cPct}%) saturate(${satPct}%)`;
 
-      // Find which segment contains current playhead time
-      const t = video.currentTime || 0;
-      const activeIdx = segments.findIndex(s => t >= s.start - 0.05 && t <= s.end + 0.05);
-      const activeSeg = activeIdx !== -1 ? segments[activeIdx] : segments[selectedSegIdx];
+      const seg = segments[selectedSegIdx];
+      if (seg) {
+        const rot = seg.rotate || 0;
+        const scaleX = seg.mirror ? -1 : 1;
+        const fit = (rot === 90 || rot === 270) ? 0.65 : 1.0;
+        video.style.transform = `rotate(${rot}deg) scale(${fit * scaleX}, ${fit})`;
 
-      if (activeSeg) {
-        // Apply Rotate & Mirror transform
-        const rot = activeSeg.rotate || 0;
-        const scaleX = activeSeg.mirror ? -1 : 1;
-        // Scale down slightly when rotated 90/270 so landscape fits inside viewport
-        const fitScale = (rot === 90 || rot === 270) ? 0.65 : 1.0;
-        video.style.transform = `rotate(${rot}deg) scale(${fitScale * scaleX}, ${fitScale})`;
-
-        // Apply Per-Part CapCut/TikTok Black Fade-In Overlay
-        const elapsed = Math.max(0, t - activeSeg.start);
-        const fadeDur = activeSeg.fadeInDuration || 0.8;
-        if (activeSeg.fadeIn && elapsed < fadeDur) {
+        const elapsed = overrideElapsed !== undefined
+          ? overrideElapsed
+          : Math.max(0, (video.currentTime - seg.start) / (seg.speed || 1.0));
+        const fadeDur = seg.fadeInDuration || 0.8;
+        if (seg.fadeIn && elapsed < fadeDur) {
           const prog = Math.max(0, Math.min(1, elapsed / fadeDur));
           const alpha = 1.0 - Math.pow(1.0 - prog, 3.0);
           fadeBlackOverlay.style.opacity = (1.0 - alpha).toFixed(3);
@@ -1120,73 +1496,69 @@
       updateLabels();
       document.getElementById('btnPreset1').classList.toggle('active', num === 1);
       document.getElementById('btnPreset2').classList.toggle('active', num === 2);
-      document.getElementById('presetBadge').textContent = num === 1 ? '🔥 CapCut Default 1' : '✨ CapCut Default 2';
+      document.getElementById('aiUhdLabel').textContent = num === 1 ? 'AI UHD 1' : 'AI UHD 2';
     }
 
     document.getElementById('btnPreset1').onclick = () => applyPreset(PRESET_1, 1);
     document.getElementById('btnPreset2').onclick = () => applyPreset(PRESET_2, 2);
 
-    // Scrubber & Playback loop
-    scrubberRange.oninput = () => {
-      const t = parseFloat(scrubberRange.value);
-      video.currentTime = t;
-      document.getElementById('timeLabel').innerHTML = `<b>${formatTime(t)}</b> / ${formatTime(totalVideoDuration)}`;
-      updateLivePreview();
-    };
-
-    video.ontimeupdate = () => {
-      const t = video.currentTime;
-      scrubberRange.value = t;
-      document.getElementById('timeLabel').innerHTML = `<b>${formatTime(t)}</b> / ${formatTime(totalVideoDuration)}`;
-      updateLivePreview();
-
+    // Playback Loop syncing Filmstrip Scroll to Center White Vertical Playhead Line
+    function playbackTick() {
       if (!video.paused && segments.length > 0) {
-        const curIdx = segments.findIndex(s => t >= s.start - 0.05 && t <= s.end + 0.05);
-        if (curIdx !== -1 && curIdx !== selectedSegIdx) {
-          selectedSegIdx = curIdx;
-          renderFilmstrip();
-        } else if (curIdx === -1) {
-          const nextSeg = segments.find(s => s.start > t);
-          if (nextSeg) {
-            video.currentTime = nextSeg.start;
+        const t = video.currentTime;
+        const curSeg = segments[selectedSegIdx];
+        if (curSeg && t >= curSeg.end - 0.04) {
+          if (selectedSegIdx + 1 < segments.length) {
+            selectedSegIdx++;
+            video.playbackRate = segments[selectedSegIdx].speed || 1.0;
+            video.currentTime = segments[selectedSegIdx].start;
+            renderTimeline();
           } else {
+            selectedSegIdx = 0;
+            video.playbackRate = segments[0].speed || 1.0;
             video.currentTime = segments[0].start;
+            renderTimeline();
           }
         }
+        const compSec = sourceTimeToComp(video.currentTime, selectedSegIdx);
+        const totalComp = getTotalCompDuration();
+        isAutoScrolling = true;
+        timelineScroll.scrollLeft = compSec * PX_PER_SEC;
+        document.getElementById('timecodeFloating').innerHTML = `${fmtMMSS(compSec)} <span>/ ${fmtMMSS(totalComp)}</span>`;
+        updateLivePreview();
+        setTimeout(() => { isAutoScrolling = false; }, 15);
       }
-    };
-
-    // 60FPS smooth fade overlay animation loop during playback
-    function animTick() {
-      if (!video.paused) updateLivePreview();
-      requestAnimationFrame(animTick);
+      requestAnimationFrame(playbackTick);
     }
-    requestAnimationFrame(animTick);
+    requestAnimationFrame(playbackTick);
 
     document.getElementById('btnPlayPause').onclick = () => {
       if (video.paused) {
+        if (segments[selectedSegIdx]) {
+          video.playbackRate = segments[selectedSegIdx].speed || 1.0;
+        }
         video.play();
-        document.getElementById('btnPlayPause').textContent = '⏸ Pause';
+        document.getElementById('playSvgIcon').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
       } else {
         video.pause();
-        document.getElementById('btnPlayPause').textContent = '▶ Play';
+        document.getElementById('playSvgIcon').innerHTML = '<polygon points="6 4 20 12 6 20 6 4"/>';
       }
     };
 
-    // Voice Recording via "+ Add audio" bar or Volume drawer button
+    // Voice Recording
     function triggerVoiceRecord() {
       if (hasNativeBridge()) {
         window.webkit.messageHandlers.tabiNative.postMessage({ action: 'toggleVoiceRecord' });
       }
     }
-    document.getElementById('audioTrackBar').onclick = triggerVoiceRecord;
+    document.getElementById('voiceSubtrack').onclick = triggerVoiceRecord;
     document.getElementById('btnRecordVoice').onclick = triggerVoiceRecord;
 
     window.onVoiceRecordState = function(isRec, statusText) {
-      const bar = document.getElementById('audioTrackBar');
-      bar.classList.toggle('recording', isRec);
-      bar.classList.toggle('ready', !isRec && statusText.includes('✅'));
-      bar.querySelector('span').textContent = isRec ? '🔴 Recording Mic Voiceover... (Tap to Stop)' : statusText;
+      const sub = document.getElementById('voiceSubtrack');
+      sub.classList.toggle('recording', isRec);
+      sub.classList.toggle('ready', !isRec && statusText.includes('✅'));
+      sub.querySelector('span').textContent = isRec ? '🔴 Recording Mic... (Tap to Stop)' : statusText;
       document.getElementById('btnRecordVoice').textContent = isRec ? '⏹ Stop Mic Recording' : '🎙️ Record Mic Voiceover';
     };
 
